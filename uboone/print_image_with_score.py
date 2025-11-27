@@ -1,3 +1,4 @@
+import sys, getopt
 # To run this script use the prod_dl_larcv2.sif container 
 
 import os, sys, ROOT  
@@ -17,7 +18,7 @@ import torch.utils.data.dataloader as dataloader
 from torch.autograd import Variable
 from torch.utils.data import DataLoader, TensorDataset
 from mpid_data import mpid_data_binary
-from mpid_net import mpid_net_binary, mpid_func
+from mpid_net import mpid_net_binary, mpid_func_binary as mpid_func
 from lib.config import config_loader
 from lib.utility import get_fname, logit_transform
 from scipy.ndimage import rotate
@@ -152,6 +153,7 @@ def PrintImage(ENTRY):
 
 
 if __name__ == "__main__":
+    entry = 0
     entry = None
     argv = sys.argv[1:]
     try:
@@ -159,6 +161,7 @@ if __name__ == "__main__":
     except:
         print("Error...")
 
+    opts, args = getopt.getopt(argv, "hc:n:", ["help","config=","entry="])
     for opt, arg in opts:
             if opt in ['-n']: 
                 entry = arg

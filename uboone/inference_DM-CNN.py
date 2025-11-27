@@ -1,7 +1,6 @@
 # Standard python libraries
 import os, sys, ROOT
 import getopt, time 
-import uproot as np
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -21,7 +20,7 @@ from scipy.ndimage import rotate
 
 # MPID scripts 
 from mpid_data import mpid_data_binary
-from mpid_net import mpid_net_binary, mpid_func
+from mpid_net import mpid_net_binary
 
 plt.ioff()
 torch.cuda.is_available()

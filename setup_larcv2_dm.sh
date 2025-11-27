@@ -7,10 +7,17 @@ export LC_ALL=C
 
 # Set up ROOT
 echo "Setting up ROOT..."
-source /opt/root/bin/thisroot.sh
+cd /opt/root
+source bin/thisroot.sh
+cd -
 
 # Set up larcv2 
 echo "Setting up larcv2..."
+export LARCV_BASEDIR=/usr/dependencies/larcv2/build
+export LARCV_LIBDIR=$LARCV_BASEDIR/lib
+export LD_LIBRARY_PATH=$LARCV_LIBDIR:$LD_LIBRARY_PATH
+export PYTHONPATH=/usr/dependencies/larcv2/python:$PYTHONPATH
+export PYTHONPATH=$LARCV_LIBDIR:$PYTHONPATH
 source /usr/dependencies/larcv2/configure.sh
 
 # This directory points to where the DM-CNN repo is 

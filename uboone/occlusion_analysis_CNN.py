@@ -1,6 +1,5 @@
 import os, sys, ROOT
-import getopt, time
-import uproot as np                                                    
+import getopt, time 
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -18,7 +17,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 # MPID scripts 
 from mpid_data import mpid_data_binary
-from mpid_net import mpid_net_binary, mpid_func
+from mpid_net import mpid_net_binary
 from lib.config import config_loader
 from lib.utility import get_fname
 

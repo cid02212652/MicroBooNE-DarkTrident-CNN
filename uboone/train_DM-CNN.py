@@ -178,14 +178,15 @@ def TrainCNN():
                 fout.write("%f"%step)
                 fout.write("\n")
             step+=1
-        fout.close()
-        # end timer
-        end = time.time()
-        print("\n")
-        print("Total training time: {:0.4f} seconds".format(end-init))
-        return 0 
+    fout.close()
+    # end timer
+    end = time.time()
+    print("\n")
+    print("Total training time: {:0.4f} seconds".format(end-init))
+    return 0 
 
 
 
 if __name__ == '__main__':
     TrainCNN()
+

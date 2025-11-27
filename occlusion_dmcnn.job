@@ -1,0 +1,10 @@
+executable = occlusion_payload.sh
+output = logs/occ_dmcnn.$(CLUSTER).out
+error = logs/occ_dmcnn.$(CLUSTER).err
+log = logs/occ_dmcnn.$(CLUSTER).log
+
+request_gpus = 1
+requirements = regexp("V100|A6000", string(TARGET.GPUs_DeviceName))
+
++MaxRuntime = 84000
+queue

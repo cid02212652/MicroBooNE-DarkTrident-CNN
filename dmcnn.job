@@ -1,0 +1,10 @@
+executable = payload.sh
+output = logs/dmcnn.$(CLUSTER).out
+error = logs/dmcnn.$(CLUSTER).err
+log = logs/dmcnn.$(CLUSTER).log
+
+request_gpus = 1
+requirements = regexp("V100|A6000", string(TARGET.GPUs_DeviceName))
+
++MaxRuntime = 84000
+queue

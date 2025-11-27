@@ -1,6 +1,24 @@
 import numpy as np
+import numpy as np
+from larcv import larcv
 from larcv import larcv
 import random
+import random
+
+
+import ROOT
+
+# --- fallback converter when larcv.as_ndarray is missing ---
+def _img_to_numpy(img):
+    try:
+        from larcv import larcv as lcv
+        return lcv.as_ndarray(img)  # present in some builds
+    except Exception:
+        vec  = img.as_vector()
+        rows = img.meta().rows()
+        cols = img.meta().cols()
+        arr  = np.array(vec, dtype=np.float32)
+        return arr.reshape(rows, cols)
 
 import ROOT
 from ROOT import TChain
@@ -43,7 +61,7 @@ class MPID_Dataset(Dataset):
 
         self.particle_image_chain.GetEntry(ENTRY)
         self.this_image_cpp_object = self.particle_image_chain.image2d_image2d_binary_branch 
-        self.this_image=larcv.as_ndarray(self.this_image_cpp_object.as_vector()[self.plane])       
+        self.this_image=larcv.as_ndarray(self.this_image_cpp_object.as_vector()[self.plane])
         # Image Thresholding
         self.this_image=image_modify(self.this_image)
 
@@ -84,3 +102,4 @@ class MPID_Dataset(Dataset):
 
     def __len__(self):
         return self.particle_image_chain.GetEntries()
+
