@@ -17,3 +17,6 @@ log*/
 checkpoint
 test/
 weights/
+.venv/
+__pycache__/
+*.pyc
