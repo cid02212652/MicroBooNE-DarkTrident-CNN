@@ -7,6 +7,6 @@ IMG=/vols/sbn/uboone/an1522/docker_image/larcv2_py3_1.1.sif
 apptainer exec --nv -B "$PROJECT":/workspace -B "$DATA":/data "$IMG" /bin/bash -lc '
   cd /workspace/DM-CNN
   source setup_larcv2_dm.sh
-  python3 ./uboone/print_image_with_score.py -n 4794
+  python3 ./uboone/print_image_with_score.py -n 0
 
 '
