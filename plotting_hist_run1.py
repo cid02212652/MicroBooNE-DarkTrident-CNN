@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # ---- I/O paths (same defaults as before)
 OUTDIR_INF = os.path.expanduser("~/dark_tridents_wspace/outputs/inference/run1")
-PLOT_OUT   = os.path.expanduser("~/dark_tridents_wspace/outputs/inference/run1/run1_stacked_hist.png")
+PLOT_OUT   = os.path.expanduser("~/dark_tridents_wspace/outputs/inference/run1/run1_stacked_hist3.png")
 
 # ---- Column name guesses (case-insensitive)
 SCORE_CANDIDATES = ["score","signal_score","y_pred","pred","prob","prob_signal"]
@@ -17,7 +17,7 @@ def classify(path):
     name = os.path.basename(path)
     low  = name.lower()
 
-    if "dt_ratio_0.6_ma_0.05_pi0" in low:
+    if "dt_ratio_0.6_ma_0.05" in low:
         return "Dark trident"
     if "offbeam" in low:
         return "Beam-off"
@@ -122,7 +122,8 @@ def main():
     bg_data = [scores[k] for k in stack_order]
     labels  = ["In cryo ν","Out of cryo","Beam-off"]
     colors  = ["#7b1fa2","#0b0b6b","#71c7ec"]
-    weights = [np.full(len(x), w) for x, w in zip(bg_data, [0.09, 0.10, 0.66])]
+    # weights = [np.full(len(x), w) for x, w in zip(bg_data, [0.09, 0.10, 0.66])]
+    weights = [np.full(len(x), w) for x, w in zip(bg_data, [1, 1, 1])]
 
     # stacked backgrounds (force exact range)
     plt.hist(bg_data, bins=bins, stacked=True, label=labels, color=colors,
