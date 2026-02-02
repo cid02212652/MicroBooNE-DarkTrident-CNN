@@ -5,17 +5,17 @@ from pathlib import Path
 
 # --- Base paths
 BASE    = os.path.expanduser("~/dark_tridents_wspace")
-CFG     = os.path.join(BASE, "DM-CNN", "cfg", "inference_config_binary.cfg")
+CFG     = os.path.join(BASE, "DM-CNN", "cfg", "inference_config_binary_2.cfg")
 JOBDIR  = os.path.join(BASE, "DM-CNN")
-JOBFILE = "inference_dmcnn.job"
+JOBFILE = "inference_dmcnn_2.job"
 
 # --- Inputs
 RUN1_BASE = "/vols/sbn/uboone/darkTridents/data/larcv_files"
-ROOT_SUB  = "run3_signal"                 # ROOTs live in RUN1_BASE/ROOT_SUB/
-CSV_DIR   = os.path.join(BASE, "run3_signal")  # your 3 CSVs live here
+ROOT_SUB  = "run1_signal"                 # ROOTs live in RUN1_BASE/ROOT_SUB/
+CSV_DIR   = os.path.join(BASE, "run1_signal")  # your 3 CSVs live here
 
 # --- Outputs (write directly here by editing output_dir in cfg)
-OUT_DIR = os.path.join(BASE, "outputs", "inference", "run3_signal")
+OUT_DIR = os.path.join(BASE, "outputs", "inference", "run1_signal_resnet34_bn")
 
 DRYRUN = False
 

@@ -1,0 +1,10 @@
+executable = inference_payload_run1_resnet_3.sh
+output = logs/infer_run1_dmcnn_resnet_3.$(CLUSTER).out
+error = logs/infer_run1_dmcnn_resnet_3.$(CLUSTER).err
+log = logs/infer_run1_dmcnn_resnet_3.$(CLUSTER).log
+
+request_gpus = 1
+requirements = regexp("V100|A6000", string(TARGET.GPUs_DeviceName))
+
++MaxRuntime = 84000
+queue

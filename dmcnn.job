@@ -1,4 +1,4 @@
-executable = payload.sh
+executable = training_payload.sh
 output = logs/dmcnn.$(CLUSTER).out
 error = logs/dmcnn.$(CLUSTER).err
 log = logs/dmcnn.$(CLUSTER).log

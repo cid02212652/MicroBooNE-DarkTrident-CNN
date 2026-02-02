@@ -11,11 +11,11 @@ JOBFILE = "inference_dmcnn.job"
 
 # --- Inputs
 RUN1_BASE = "/vols/sbn/uboone/darkTridents/data/larcv_files"
-ROOT_SUB  = "run3_signal"                 # ROOTs live in RUN1_BASE/ROOT_SUB/
-CSV_DIR   = os.path.join(BASE, "run3_signal")  # your 3 CSVs live here
+ROOT_SUB  = "run1_signal"                 # ROOTs live in RUN1_BASE/ROOT_SUB/
+CSV_DIR   = os.path.join(BASE, "run1_signal")  # your 3 CSVs live here
 
 # --- Outputs (write directly here by editing output_dir in cfg)
-OUT_DIR = os.path.join(BASE, "outputs", "inference", "run3_signal")
+OUT_DIR = os.path.join(BASE, "outputs", "inference", "run1_signal")
 
 DRYRUN = False
 

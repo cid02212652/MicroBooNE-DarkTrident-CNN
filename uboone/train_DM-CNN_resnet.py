@@ -30,6 +30,7 @@ import time
 # import MPID core 
 from mpid_data import mpid_data_binary
 from mpid_net import mpid_net_binary, mpid_func_binary
+from mpid_net import mpid_net_resnet_binary, mpid_net_resnet_binary_better
 
 
 def TrainCNN():
@@ -60,6 +61,8 @@ def TrainCNN():
     test_file = cfg.input_test 
     weights_dir = cfg.weights_directory 
     SEED = cfg.seed_number 
+    model_name = cfg.model
+    resnet_norm = cfg.resnet_norm
 
     print("Inputs given: ")
     print("Training file: ", train_file)
@@ -69,13 +72,14 @@ def TrainCNN():
     print("Seed?: ", cfg.seed)
     print("\n")
 
+
     # Create file to store training metrics 
-    fout = open(output_dir + 'DM-CNN_training_metrics_{}.csv'.format(timestr()), 'w')
+    fout = open(output_dir + '{}_{}_training_metrics_{}.csv'.format(model_name, resnet_norm, timestr()), 'w')
     fout.write('train_accu,test_accu,train_loss,test_loss,epoch,step')
     fout.write('\n')
 
     # String used to create files that will contain the CNN weights
-    CNN_weights = weights_dir + "DM-CNN_model_{}_epoch_{}_batch_id_{}_labels_{}_step_{}.pwf"
+    CNN_weights = weights_dir + "{}_{}_model_{}_epoch_{}_batch_id_{}_labels_{}_step_{}.pwf"
     
     cuda = torch.cuda.is_available()
 
@@ -97,21 +101,51 @@ def TrainCNN():
     # If your images are labeled under a different data product name change this accordingly. 
 
     # Training data
-    train_data = mpid_data_binary.MPID_Dataset(train_file, "image2d_image2d_binary_tree", train_device, plane=0, augment=False)
+    # train_data = mpid_data_binary.MPID_Dataset(train_file, "image2d_image2d_binary_tree", train_device, plane=0, augment=False)
+    train_data = mpid_data_binary.MPID_Dataset(train_file, "image2d_image2d_binary_tree", train_device, plane=cfg.plane, augment=cfg.augment)
     train_loader = DataLoader(dataset=train_data, batch_size=cfg.batch_size_train, shuffle=True)
     labels = 2
 
     # Test data
-    test_data = mpid_data_binary.MPID_Dataset(test_file, "image2d_image2d_binary_tree", train_device, plane=0)
+    # test_data = mpid_data_binary.MPID_Dataset(test_file, "image2d_image2d_binary_tree", train_device, plane=0)
+    test_data  = mpid_data_binary.MPID_Dataset(test_file, "image2d_image2d_binary_tree", train_device, plane=cfg.plane)
     test_loader = DataLoader(dataset=test_data, batch_size=cfg.batch_size_test, shuffle=True)
 
-    # Import the CNN model 
-    mpid = mpid_net_binary.MPID(dropout=cfg.drop_out, num_classes=2)
-    mpid.cuda()
+    # # Import the CNN model 
+    # mpid = mpid_net_binary.MPID(dropout=cfg.drop_out, num_classes=2)
+    # mpid.cuda()
+
+    model_name = getattr(cfg, "model", "mpid")
+
+    if model_name == "mpid":
+        mpid = mpid_net_binary.MPID(dropout=cfg.drop_out, num_classes=2)
+    
+    elif model_name in ("resnet18", "resnet34"):
+        # mpid = mpid_net_resnet_binary.MPID(
+        #     arch=model_name,
+        #     num_classes=2,
+        #     in_channels=getattr(cfg, "in_channels", 1),
+        #     dropout=cfg.drop_out,
+        #     pretrained=getattr(cfg, "resnet_pretrained", False),
+        # )
+        mpid = mpid_net_resnet_binary_better.MPID(
+            arch=cfg.model,
+            in_channels=cfg.in_channels,
+            num_classes=2,
+            dropout=cfg.drop_out,
+            pretrained=cfg.resnet_pretrained,
+            norm=getattr(cfg, "resnet_norm", "bn"),
+            gn_groups=getattr(cfg, "gn_groups", 32),
+        )
+    else:
+        raise ValueError(f"Unknown cfg.model = {model_name}")
+    
+    mpid = mpid.to(train_device)
 
     # Using BCEWithLogitsLoss instead of 
     # Using Sigmoid in mpidnet + BCELoss 
     loss_fn = nn.BCEWithLogitsLoss()
+
 
     optimizer  = optim.Adam(mpid.parameters(), lr=cfg.learning_rate)#, weight_decay=0.001)
     train_step = mpid_func_binary.make_train_step(mpid, loss_fn, optimizer)
@@ -154,8 +188,8 @@ def TrainCNN():
                 loss), 
                 end='')
             if (batch_idx % cfg.test_every_step == 1 and cfg.run_test):
-                if (cfg.save_weights and epoch >= 3 and epoch <= 6):
-                    torch.save(mpid.state_dict(), CNN_weights.format(timestr(), epoch, batch_idx, labels, step))
+                if (cfg.save_weights and epoch >= 4 and epoch <= 6):
+                    torch.save(mpid.state_dict(), CNN_weights.format(model_name, resnet_norm, timestr(), epoch, batch_idx, labels, step))
 
                 print ("Start eval on test sample.......@step..{}..@epoch..{}..@batch..{}".format(step,epoch, batch_idx))
                 test_accuracy = mpid_func_binary.validation(mpid, test_loader, cfg.batch_size_test, train_device, event_nums=cfg.test_events_nums)

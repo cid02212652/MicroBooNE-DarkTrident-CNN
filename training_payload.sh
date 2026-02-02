@@ -12,5 +12,5 @@ apptainer exec --nv -B "$PWD":/workspace /vols/sbn/uboone/an1522/docker_image/la
   source setup_larcv2_dm.sh
   mkdir -p /workspace/outputs
   mkdir -p /workspace/outputs/weights
-  python3 ./uboone/train_DM-CNN.py
+  python3 ./uboone/train_DM-CNN_resnet.py
 '
