@@ -1,7 +1,7 @@
-executable = inference_payload_run1_resnet_1.sh
-output = logs/infer_run1_dmcnn_resnet_1.$(CLUSTER).out
-error = logs/infer_run1_dmcnn_resnet_1.$(CLUSTER).err
-log = logs/infer_run1_dmcnn_resnet_1.$(CLUSTER).log
+executable = inference_payload_run1_mpid_1.sh
+output = logs/infer_run1_dmcnn_1.$(CLUSTER).out
+error = logs/infer_run1_dmcnn_1.$(CLUSTER).err
+log = logs/infer_run1_dmcnn_1.$(CLUSTER).log
 
 request_gpus = 1
 requirements = regexp("V100|A6000", string(TARGET.GPUs_DeviceName))

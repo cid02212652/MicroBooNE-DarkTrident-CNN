@@ -1,0 +1,14 @@
+executable = visualise_network.sh
+
+# logs
+output = logs/net_viz.$(Cluster).out
+error = logs/net_viz.$(Cluster).$(Process).err
+log = logs/net_viz.$(Cluster).$(Process).log
+
+# resources
+request_cpus = 1
+request_memory = 3900
+
++MaxRuntime = 84000
+
+queue 1

@@ -1,0 +1,15 @@
+executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/gradcam_wrapper_32x32.sh
+
+output = logs/gradcam_32x32.$(Cluster).$(Process).out
+error  = logs/gradcam_32x32.$(Cluster).$(Process).err
+log    = logs/gradcam_32x32.$(Cluster).log
+
+arguments = $(root_file) $(weight_file) $(out_dir) $(entry_number) $(n_pixels) $(tag)
+
+request_gpus = 1
+requirements = regexp("V100|A6000", string(TARGET.GPUs_DeviceName))
+
++MaxRuntime = 84000
+
+queue root_file, weight_file, out_dir, entry_number, n_pixels, tag \
+  from /home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/gradcam_tasks.list

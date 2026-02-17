@@ -5,7 +5,7 @@ from pathlib import Path
 
 # --- Base paths
 BASE    = os.path.expanduser("~/dark_tridents_wspace")
-CFG     = os.path.join(BASE, "DM-CNN", "cfg", "inference_config_binary_3.cfg")
+CFG     = os.path.join(BASE, "DM-CNN", "cfg", "inference_config_binary_resnet_3.cfg")
 JOBDIR  = os.path.join(BASE, "DM-CNN")
 JOBFILE = "inference_dmcnn_3.job"
 

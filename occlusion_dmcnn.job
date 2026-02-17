@@ -1,4 +1,4 @@
-executable = occlusion_payload.sh
+executable = occlusion_payload_run1.sh
 output = logs/occ_dmcnn.$(CLUSTER).out
 error = logs/occ_dmcnn.$(CLUSTER).err
 log = logs/occ_dmcnn.$(CLUSTER).log
