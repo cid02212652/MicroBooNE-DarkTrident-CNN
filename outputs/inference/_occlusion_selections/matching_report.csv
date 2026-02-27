@@ -1,0 +1,9 @@
+dataset,folder,total_master_events,matched_events,wrote_csv
+run1_samples,mpid,40,40,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run1_samples__mpid.csv
+run1_samples,resnet34_gn,40,40,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run1_samples__resnet34_gn.csv
+run1_signal,mpid,35,35,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run1_signal__mpid.csv
+run1_signal,resnet34_gn,35,35,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run1_signal__resnet34_gn.csv
+run3_samples,mpid,39,39,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run3_samples__mpid.csv
+run3_samples,resnet34_gn,39,39,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run3_samples__resnet34_gn.csv
+run3_signal,mpid,35,35,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run3_signal__mpid.csv
+run3_signal,resnet34_gn,35,35,/home/hep/an1522/dark_tridents_wspace/outputs/inference/_occlusion_selections/to_occlude__run3_signal__resnet34_gn.csv
