@@ -6,7 +6,6 @@
 *.txt
 *.png
 *.log
-*.csv
 log*/
 *.data*
 *.meta
@@ -20,3 +19,5 @@ weights/
 .venv/
 __pycache__/
 *.pyc
+*.pkl
+*.onnx
