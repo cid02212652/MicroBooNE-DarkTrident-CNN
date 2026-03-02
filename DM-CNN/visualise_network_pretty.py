@@ -9,6 +9,7 @@ import torch.nn as nn
 
 from collections import OrderedDict
 
+
 def import_from_path(py_path: Path, module_name: str):
     spec = importlib.util.spec_from_file_location(module_name, py_path)
     mod = importlib.util.module_from_spec(spec)
@@ -19,24 +20,36 @@ def import_from_path(py_path: Path, module_name: str):
 
 # ---------------- Pretty wrappers ----------------
 
+
 class PrettyResNet(nn.Module):
     def __init__(self, resnet: nn.Module):
         super().__init__()
-        self.stem = nn.Sequential(OrderedDict([
-            ("conv1", resnet.conv1),
-            ("norm1", resnet.bn1 if hasattr(resnet, "bn1") else nn.Identity()),
-            ("relu",  resnet.relu),
-            ("pool",  resnet.maxpool if hasattr(resnet, "maxpool") else nn.Identity()),
-        ]))
+        self.stem = nn.Sequential(
+            OrderedDict(
+                [
+                    ("conv1", resnet.conv1),
+                    ("norm1", resnet.bn1 if hasattr(resnet, "bn1") else nn.Identity()),
+                    ("relu", resnet.relu),
+                    (
+                        "pool",
+                        resnet.maxpool if hasattr(resnet, "maxpool") else nn.Identity(),
+                    ),
+                ]
+            )
+        )
         self.stage1 = resnet.layer1
         self.stage2 = resnet.layer2
         self.stage3 = resnet.layer3
         self.stage4 = resnet.layer4
-        self.head = nn.Sequential(OrderedDict([
-            ("avgpool", resnet.avgpool),
-            ("flatten", nn.Flatten(1)),
-            ("fc",      resnet.fc),
-        ]))
+        self.head = nn.Sequential(
+            OrderedDict(
+                [
+                    ("avgpool", resnet.avgpool),
+                    ("flatten", nn.Flatten(1)),
+                    ("fc", resnet.fc),
+                ]
+            )
+        )
 
     def forward(self, x):
         x = self.stem(x)
@@ -62,12 +75,13 @@ class PrettyMPIDBinary(nn.Module):
     def forward(self, x):
         x = self.features(x)
         x = self.dropout(x)
-        x = self.flatten(x)          # <-- KEY FIX
+        x = self.flatten(x)  # <-- KEY FIX
         x = self.classifier(x)
-        return self.sigmoid(x)       # remove this if your classifier already has sigmoid
+        return self.sigmoid(x)  # remove this if your classifier already has sigmoid
 
 
 # ---------------- Export ----------------
+
 
 def export_onnx(model: nn.Module, x: torch.Tensor, outpath: Path):
     outpath.parent.mkdir(parents=True, exist_ok=True)
@@ -79,7 +93,7 @@ def export_onnx(model: nn.Module, x: torch.Tensor, outpath: Path):
         opset_version=17,
         input_names=["input"],
         output_names=["output"],
-        dynamic_axes=None,   # simplest; fixed 1×C×H×W export is fine for viz
+        dynamic_axes=None,  # simplest; fixed 1×C×H×W export is fine for viz
     )
     print("[OK]", outpath)
 
@@ -103,8 +117,15 @@ def main():
     resnet_mod = import_from_path(Path(args.resnet_file), "mpid_resnet_mod")
     MPIDResNet = resnet_mod.MPID
 
-    for arch, norm in [("resnet18","bn"), ("resnet18","gn"), ("resnet34","bn"), ("resnet34","gn")]:
-        wrapper = MPIDResNet(arch=arch, norm=norm, in_channels=args.C, pretrained=False).eval()
+    for arch, norm in [
+        ("resnet18", "bn"),
+        ("resnet18", "gn"),
+        ("resnet34", "bn"),
+        ("resnet34", "gn"),
+    ]:
+        wrapper = MPIDResNet(
+            arch=arch, norm=norm, in_channels=args.C, pretrained=False
+        ).eval()
 
         # unwrap to the torchvision model if it exists
         core = getattr(wrapper, "net", wrapper)

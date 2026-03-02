@@ -11,6 +11,7 @@ import torch.nn as nn
 
 # Matplotlib only for saving plots (Agg backend safe on batch)
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -19,17 +20,17 @@ import matplotlib.colors as colors
 # Diagnostics: functions to help
 # -----------------------------
 
-import os, sys, hashlib
-import numpy as np
-import torch
-import torch.nn as nn
+import sys
+import hashlib
 
-def sha256_file(path, chunk=1024*1024):
+
+def sha256_file(path, chunk=1024 * 1024):
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for b in iter(lambda: f.read(chunk), b""):
             h.update(b)
     return h.hexdigest()
+
 
 def tensor_fingerprint(x: torch.Tensor):
     """Stable-ish fingerprint for 'is this the exact same tensor?' checks."""
@@ -46,6 +47,7 @@ def tensor_fingerprint(x: torch.Tensor):
         "sha1": hashlib.sha1(arr.tobytes()).hexdigest(),
     }
 
+
 def gn_summary(model: nn.Module):
     """For spotting GN16 vs GN32 mismatches."""
     groups = []
@@ -56,6 +58,7 @@ def gn_summary(model: nn.Module):
         "n_groupnorm": len(groups),
         "unique_num_groups": sorted(set(groups)),
     }
+
 
 def score_summary_from_logits(logits: torch.Tensor):
     """
@@ -78,9 +81,11 @@ def score_summary_from_logits(logits: torch.Tensor):
         out["sigmoid_logitdiff_(l0-l1)"] = float(torch.sigmoid(v[0] - v[1]))
     return out
 
+
 # -----------------------------
 # Helpers: checkpoint + model detection
 # -----------------------------
+
 
 def _extract_state(ckpt):
     # support: raw state_dict, {"state_dict": ...}, {"model_state_dict": ...}
@@ -93,9 +98,13 @@ def _extract_state(ckpt):
         return ckpt
     raise ValueError("Unsupported checkpoint format (expected dict / state_dict).")
 
+
 def _looks_like_resnet_state(state: Dict[str, torch.Tensor]) -> bool:
     keys = list(state.keys())
-    return any(k.startswith("net.layer") or ".layer" in k for k in keys) or any(k.startswith("layer") for k in keys)
+    return any(k.startswith("net.layer") or ".layer" in k for k in keys) or any(
+        k.startswith("layer") for k in keys
+    )
+
 
 def _infer_resnet_depth(state: Dict[str, torch.Tensor]) -> int:
     # ResNet34 has blocks like layer1.2, layer2.3, layer3.5, etc.
@@ -109,12 +118,14 @@ def _infer_resnet_depth(state: Dict[str, torch.Tensor]) -> int:
             return 34
     return 18
 
+
 def _infer_norm(state: Dict[str, torch.Tensor]) -> str:
     # BN has running_mean/running_var buffers in the state_dict
     keys = list(state.keys())
     if any(k.endswith("running_mean") or k.endswith("running_var") for k in keys):
         return "bn"
     return "gn"
+
 
 def _summarise_ckpt(state: Dict[str, torch.Tensor]) -> str:
     is_resnet = _looks_like_resnet_state(state)
@@ -124,18 +135,22 @@ def _summarise_ckpt(state: Dict[str, torch.Tensor]) -> str:
     norm = _infer_norm(state)
     return f"resnet{depth}_{norm}"
 
+
 # -----------------------------
 # Models
 # -----------------------------
 
+
 class MPIDBinary(nn.Module):
     def __init__(self):
         from mpid_net import mpid_net_binary
+
         super().__init__()
         self.net = mpid_net_binary.MPID()
 
     def forward(self, x):
         return self.net(x)
+
 
 def _replace_bn_with_gn(module: nn.Module, num_groups: int = 32):
     """
@@ -143,10 +158,16 @@ def _replace_bn_with_gn(module: nn.Module, num_groups: int = 32):
     """
     for name, child in module.named_children():
         if isinstance(child, nn.BatchNorm2d):
-            gn = nn.GroupNorm(num_groups=num_groups, num_channels=child.num_features, eps=child.eps, affine=True)
+            gn = nn.GroupNorm(
+                num_groups=num_groups,
+                num_channels=child.num_features,
+                eps=child.eps,
+                affine=True,
+            )
             setattr(module, name, gn)
         else:
             _replace_bn_with_gn(child, num_groups=num_groups)
+
 
 class ResNetBinaryWrapper(nn.Module):
     def __init__(self, depth: int = 18, norm: str = "bn", dropout: float = 0.0):
@@ -159,24 +180,26 @@ class ResNetBinaryWrapper(nn.Module):
             net = resnet18(weights=None)
 
         # your images are 1-channel (shape [N,1,512,512])
-        net.conv1 = nn.Conv2d(1, net.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False)
+        net.conv1 = nn.Conv2d(
+            1, net.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False
+        )
 
         if norm == "gn":
             _replace_bn_with_gn(net)
 
         # 2 logits (signal/background) — we output logits and sigmoid later
         in_features = net.fc.in_features
-        net.fc = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(in_features, 2)
-        )
+        net.fc = nn.Sequential(nn.Dropout(p=dropout), nn.Linear(in_features, 2))
 
         self.net = net
 
     def forward(self, x):
         return self.net(x)
 
-def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device) -> Optional[str]:
+
+def _try_load(
+    model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device
+) -> Optional[str]:
     try:
         model.to(device)
         model.load_state_dict(state, strict=True)
@@ -185,7 +208,10 @@ def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.de
     except Exception as e:
         return str(e)
 
-def build_model(model_key: str, weight_file: str, device: torch.device) -> Tuple[nn.Module, str]:
+
+def build_model(
+    model_key: str, weight_file: str, device: torch.device
+) -> Tuple[nn.Module, str]:
     """
     Robust loader:
       - tries the requested model_key first
@@ -239,9 +265,11 @@ def build_model(model_key: str, weight_file: str, device: torch.device) -> Tuple
         f"Last error:\n{err}"
     )
 
+
 # -----------------------------
 # Occlusion logic
 # -----------------------------
+
 
 def clamp_adc(img: torch.Tensor, adc_lo: float, adc_hi: float) -> torch.Tensor:
     img = img.clone()
@@ -249,9 +277,10 @@ def clamp_adc(img: torch.Tensor, adc_lo: float, adc_hi: float) -> torch.Tensor:
     img[img < adc_lo] = 0.0
     return img
 
+
 def occlude_scan(
     model: nn.Module,
-    input_image: torch.Tensor,   # shape [1,1,H,W]
+    input_image: torch.Tensor,  # shape [1,1,H,W]
     occlusion_size: int = 4,
     stride: int = 1,
     adc_lo: float = 10.0,
@@ -274,11 +303,11 @@ def occlude_scan(
     with torch.no_grad():
         logits0 = model(x0)
         probs0 = torch.sigmoid(logits0).detach().cpu().numpy()[0]
-        
+
     print("\n--- DIAG forward ---")
     print(score_summary_from_logits(logits0))
     print("--------------------\n")
-    
+
     base_sig = float(probs0[0])
     base_bkg = float(probs0[1])
 
@@ -288,11 +317,11 @@ def occlude_scan(
     # scan
     for x in range(pad, H - pad, stride):
         for y in range(pad, W - pad, stride):
-            if float(x0[0,0,x,y].detach().cpu()) == 0.0:
+            if float(x0[0, 0, x, y].detach().cpu()) == 0.0:
                 continue
 
             x_occ = x0.detach().cpu().clone()
-            x_occ[0,0, x-pad:x+pad+1, y-pad:y+pad+1] = 0.0
+            x_occ[0, 0, x - pad : x + pad + 1, y - pad : y + pad + 1] = 0.0
 
             with torch.no_grad():
                 logits = model(x_occ.to(device))
@@ -302,11 +331,13 @@ def occlude_scan(
             bkg_map[x, y] = float(probs[1])
 
     if normalize:
+
         def norm01(a):
             amin, amax = float(np.min(a)), float(np.max(a))
             if amax <= amin:
                 return np.zeros_like(a)
             return (a - amin) / (amax - amin)
+
         sig_map = norm01(sig_map).astype(np.float32)
         bkg_map = norm01(bkg_map).astype(np.float32)
 
@@ -316,6 +347,7 @@ def occlude_scan(
         "base_signal_score": base_sig,
         "base_background_score": base_bkg,
     }
+
 
 # def save_map_png(arr: np.ndarray, out_prefix: Path, which: str, cmap: str = "gnuplot_r"):
 #     fig, ax = plt.subplots(figsize=(20, 20), dpi=200)
@@ -329,8 +361,8 @@ def occlude_scan(
 #     fig.savefig(out_prefix.with_name(out_prefix.name + f"_{which}_map.png"), bbox_inches="tight")
 #     plt.close(fig)
 
-# def save_map_png(arr: np.ndarray, out_prefix: Path, which: str, 
-#                  entry_number: int = None, n_pixels: int = None, 
+# def save_map_png(arr: np.ndarray, out_prefix: Path, which: str,
+#                  entry_number: int = None, n_pixels: int = None,
 #                  base_signal_score: float = None, base_background_score: float = None,
 #                  tag: str = None, cmap: str = "gnuplot_r"):
 #     fig, ax = plt.subplots(figsize=(20, 20), dpi=200)
@@ -349,48 +381,48 @@ def occlude_scan(
 #         info_lines.append(f"Entry Number: {entry_number}")
 #     if n_pixels is not None:
 #         info_lines.append(f"N Pixels: {n_pixels}")
-    
+
 #     # Show appropriate base score based on which plot
 #     if "Signal" in which and base_signal_score is not None:
 #         info_lines.append(f"Base Signal Score: {base_signal_score:.4f}")
 #     elif "Background" in which and base_background_score is not None:
 #         info_lines.append(f"Base Background Score: {base_background_score:.4f}")
-    
+
 #     if info_lines:
 #         info_text = "\n".join(info_lines)  # Newlines for vertical stacking
-#         fig.text(0.5, 0.02, info_text, ha='center', va='top', fontsize=18, 
+#         fig.text(0.5, 0.02, info_text, ha='center', va='top', fontsize=18,
 #                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
-#     fig.savefig(out_prefix.with_name(out_prefix.name + f"_{which}_map.png"), 
+#     fig.savefig(out_prefix.with_name(out_prefix.name + f"_{which}_map.png"),
 #             bbox_inches="tight", pad_inches=0.3)
 #     plt.close(fig)
 
-# def save_combined_map_png(signal_arr: np.ndarray, background_arr: np.ndarray, 
+# def save_combined_map_png(signal_arr: np.ndarray, background_arr: np.ndarray,
 #                           out_prefix: Path,
-#                           entry_number: int = None, n_pixels: int = None, 
+#                           entry_number: int = None, n_pixels: int = None,
 #                           base_signal_score: float = None, base_background_score: float = None,
 #                           tag: str = None, cmap: str = "gnuplot_r"):
-    
+
 #     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(40, 20), dpi=200)
-    
+
 #     # Signal map (left)
-#     im1 = ax1.imshow(signal_arr.T, origin="lower", cmap=cmap, 
+#     im1 = ax1.imshow(signal_arr.T, origin="lower", cmap=cmap,
 #                      vmin=np.min(signal_arr), vmax=np.max(signal_arr))
 #     ax1.set_xlabel("Signal Score Map", fontsize=35, labelpad=20)
 #     ax1.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
 #     cbar1 = fig.colorbar(im1, ax=ax1)
 #     cbar1.set_label("score", fontsize=25)
 #     cbar1.ax.tick_params(labelsize=20)
-    
+
 #     # Background map (right)
-#     im2 = ax2.imshow(background_arr.T, origin="lower", cmap=cmap, 
+#     im2 = ax2.imshow(background_arr.T, origin="lower", cmap=cmap,
 #                      vmin=np.min(background_arr), vmax=np.max(background_arr))
 #     ax2.set_xlabel("Background Score Map", fontsize=35, labelpad=20)
 #     ax2.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
 #     cbar2 = fig.colorbar(im2, ax=ax2)
 #     cbar2.set_label("score", fontsize=25)
 #     cbar2.ax.tick_params(labelsize=20)
-    
+
 #     # Add metadata text below the plots
 #     info_lines = []
 #     if tag is not None:
@@ -403,16 +435,17 @@ def occlude_scan(
 #         info_lines.append(f"Base Signal Score: {base_signal_score:.4f}")
 #     if base_background_score is not None:
 #         info_lines.append(f"Base Background Score: {base_background_score:.4f}")
-    
+
 #     if info_lines:
 #         info_text = "\n".join(info_lines)
-#         fig.text(0.5, 0.02, info_text, ha='center', va='top', fontsize=18, 
+#         fig.text(0.5, 0.02, info_text, ha='center', va='top', fontsize=18,
 #                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-    
-#     fig.savefig(out_prefix.with_name(out_prefix.name + "_map.png"), 
+
+#     fig.savefig(out_prefix.with_name(out_prefix.name + "_map.png"),
 #                 bbox_inches="tight", pad_inches=0.3)
 #     plt.close(fig)
-    
+
+
 def save_combined_map_png(
     signal_arr: np.ndarray,
     background_arr: np.ndarray,
@@ -429,42 +462,58 @@ def save_combined_map_png(
 ):
     # Create 3 subplots: original, signal, background
     fig, (ax0, ax1, ax2) = plt.subplots(1, 3, figsize=(60, 20), dpi=200)
-    
+
     # Original image (left) - using jet colormap and power norm like PrintImage
-    im0 = ax0.imshow(original_img.T, origin="lower", cmap='jet', 
-                     norm=colors.PowerNorm(gamma=0.35, vmin=original_img.min(), vmax=original_img.max()))
+    im0 = ax0.imshow(
+        original_img.T,
+        origin="lower",
+        cmap="jet",
+        norm=colors.PowerNorm(
+            gamma=0.35, vmin=original_img.min(), vmax=original_img.max()
+        ),
+    )
     ax0.set_xlabel("Original Event", fontsize=35, labelpad=20)
     ax0.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar0 = fig.colorbar(im0, ax=ax0)
     cbar0.set_label("ADC", fontsize=25)
     cbar0.ax.tick_params(labelsize=20)
-    
+
     # Signal occlusion map (middle) - independent scale
-    im1 = ax1.imshow(signal_arr.T, origin="lower", cmap=cmap, 
-                     vmin=np.min(signal_arr), vmax=np.max(signal_arr))
+    im1 = ax1.imshow(
+        signal_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(signal_arr),
+        vmax=np.max(signal_arr),
+    )
     ax1.set_xlabel("Signal Score Map", fontsize=35, labelpad=20)
     ax1.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar1 = fig.colorbar(im1, ax=ax1)
     cbar1.set_label("Score", fontsize=25)
     cbar1.ax.tick_params(labelsize=20)
-    
+
     # Background occlusion map (right) - independent scale
-    im2 = ax2.imshow(background_arr.T, origin="lower", cmap=cmap, 
-                     vmin=np.min(background_arr), vmax=np.max(background_arr))
+    im2 = ax2.imshow(
+        background_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(background_arr),
+        vmax=np.max(background_arr),
+    )
     ax2.set_xlabel("Background Score Map", fontsize=35, labelpad=20)
     ax2.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar2 = fig.colorbar(im2, ax=ax2)
     cbar2.set_label("Score", fontsize=25)
     cbar2.ax.tick_params(labelsize=20)
-    
+
     fig.subplots_adjust(
-        left=0.15,   # bigger left margin
+        left=0.15,  # bigger left margin
         right=0.85,  # bigger right margin
         bottom=0.2,  # bigger bottom margin
-        top=0.8,     # bigger top margin
-        wspace=0.1, # keep or increase gap between panels
+        top=0.8,  # bigger top margin
+        wspace=0.1,  # keep or increase gap between panels
     )
-    
+
     # Add metadata text below
     info_lines = []
     if tag is not None:
@@ -481,14 +530,26 @@ def save_combined_map_png(
         info_lines.append(f"Model: {model_key}")
     if method is not None:
         info_lines.append(f"Method: {method}")
-    
+
     if info_lines:
         info_text = "\n".join(info_lines)
-        fig.text(0.5, 0.01, info_text, ha='center', va='bottom', fontsize=18, 
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-    
-    fig.savefig(out_prefix.with_name(out_prefix.name + "_map.png"), bbox_inches="tight", pad_inches=0.1)
+        fig.text(
+            0.5,
+            0.01,
+            info_text,
+            ha="center",
+            va="bottom",
+            fontsize=18,
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+        )
+
+    fig.savefig(
+        out_prefix.with_name(out_prefix.name + "_map.png"),
+        bbox_inches="tight",
+        pad_inches=0.1,
+    )
     plt.close(fig)
+
 
 def outputs_exist(out_prefix: Path) -> bool:
     # sig_png = out_prefix.with_name(out_prefix.name + "_Signal_map.png")
@@ -499,19 +560,44 @@ def outputs_exist(out_prefix: Path) -> bool:
     # return sig_png.exists() and bkg_png.exists() and meta_js.exists()
     return map_png.exists() and meta_js.exists()
 
+
 # -----------------------------
 # CLI
 # -----------------------------
 
+
 def build_argparser():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="auto", help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn")
+    p.add_argument(
+        "--model",
+        default="auto",
+        help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn",
+    )
     p.add_argument("--weight-file", required=True)
-    p.add_argument("--input-file", default=None, help="Path to ROOT file (inside container: /data/...)")
-    p.add_argument("--entry", type=int, default=None, help="Single entry index in ROOT tree")
-    p.add_argument("--entries", type=int, default=1, help="How many entries to run starting at --entry")
-    p.add_argument("--from-csv", default=None, help="CSV with columns: root_file, entry_number, out_dir, tag, weight_file(optional), model(optional)")
-    p.add_argument("--larcv-base", default="/data", help="Base bind inside container for ROOTs (default /data)")
+    p.add_argument(
+        "--input-file",
+        default=None,
+        help="Path to ROOT file (inside container: /data/...)",
+    )
+    p.add_argument(
+        "--entry", type=int, default=None, help="Single entry index in ROOT tree"
+    )
+    p.add_argument(
+        "--entries",
+        type=int,
+        default=1,
+        help="How many entries to run starting at --entry",
+    )
+    p.add_argument(
+        "--from-csv",
+        default=None,
+        help="CSV with columns: root_file, entry_number, out_dir, tag, weight_file(optional), model(optional)",
+    )
+    p.add_argument(
+        "--larcv-base",
+        default="/data",
+        help="Base bind inside container for ROOTs (default /data)",
+    )
     p.add_argument("--output-dir", required=True)
     p.add_argument("--tag", default="")
     p.add_argument("--occlusion-size", type=int, default=4)
@@ -525,15 +611,22 @@ def build_argparser():
     p.add_argument("--n-pixels", type=int, default=None)
     return p
 
+
 # def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.device) -> torch.Tensor:
 #     from mpid_data import mpid_data_binary
 #     ds = mpid_data_binary.MPID_Dataset(root_file, "image2d_image2d_binary_tree", device.type, plane=plane)
 #     x = ds[entry][0].view(1,1,512,512)
 #     return x
 
-def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.device) -> torch.Tensor:
+
+def load_image_from_root(
+    root_file: str, entry: int, plane: int, device: torch.device
+) -> torch.Tensor:
     from mpid_data import mpid_data_binary
-    ds = mpid_data_binary.MPID_Dataset(root_file, "image2d_image2d_binary_tree", device.type, plane=plane)
+
+    ds = mpid_data_binary.MPID_Dataset(
+        root_file, "image2d_image2d_binary_tree", device.type, plane=plane
+    )
     x, y, info, nevents = ds[entry]  # or ds[entry]
     print("\n--- DIAG event ---")
     print("ENTRY:", entry)
@@ -545,9 +638,25 @@ def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.d
     print("x_raw fingerprint:", tensor_fingerprint(x))
     return x
 
-def run_one(model, model_key, weight_file, root_file, entry, n_pixels, out_dir, tag,
-            occlusion_size, stride, adc_lo, adc_hi, normalize, plane, save_npy, device):
 
+def run_one(
+    model,
+    model_key,
+    weight_file,
+    root_file,
+    entry,
+    n_pixels,
+    out_dir,
+    tag,
+    occlusion_size,
+    stride,
+    adc_lo,
+    adc_hi,
+    normalize,
+    plane,
+    save_npy,
+    device,
+):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -584,15 +693,15 @@ def run_one(model, model_key, weight_file, root_file, entry, n_pixels, out_dir, 
         adc_lo=adc_lo,
         adc_hi=adc_hi,
         normalize=normalize,
-        device=device
+        device=device,
     )
 
     # save_map_png(res["signal_map"], out_prefix, "Signal")
     # save_map_png(res["background_map"], out_prefix, "Background")
 
     # save_map_png(
-    #     arr=res["signal_map"], 
-    #     out_prefix=out_prefix, 
+    #     arr=res["signal_map"],
+    #     out_prefix=out_prefix,
     #     which="Signal",
     #     entry_number=entry,
     #     n_pixels=n_pixels,
@@ -600,10 +709,10 @@ def run_one(model, model_key, weight_file, root_file, entry, n_pixels, out_dir, 
     #     base_background_score=res["base_background_score"],
     #     tag=tag
     # )
-    
+
     # save_map_png(
-    #     arr=res["background_map"], 
-    #     out_prefix=out_prefix, 
+    #     arr=res["background_map"],
+    #     out_prefix=out_prefix,
     #     which="Background",
     #     entry_number=entry,
     #     n_pixels=n_pixels,
@@ -613,7 +722,7 @@ def run_one(model, model_key, weight_file, root_file, entry, n_pixels, out_dir, 
     # )
 
     # save_combined_map_png(
-    #     signal_arr=res["signal_map"], 
+    #     signal_arr=res["signal_map"],
     #     background_arr=res["background_map"],
     #     out_prefix=out_prefix,
     #     entry_number=entry,
@@ -629,7 +738,7 @@ def run_one(model, model_key, weight_file, root_file, entry, n_pixels, out_dir, 
     original_img = original_img.squeeze().cpu().numpy()  # Convert to 2D numpy [H, W]
 
     save_combined_map_png(
-        signal_arr=res["signal_map"], 
+        signal_arr=res["signal_map"],
         background_arr=res["background_map"],
         original_img=original_img,  # the preprocessed input image
         out_prefix=out_prefix,
@@ -659,14 +768,20 @@ def run_one(model, model_key, weight_file, root_file, entry, n_pixels, out_dir, 
         "plane": int(plane),
         "reason": tag,
     }
-    
+
     meta_path = out_prefix.with_name(out_prefix.name + "_meta.txt")
     meta_path.write_text(json.dumps(meta, indent=2))
     print("[ok]", meta_path)
 
     if save_npy:
-        np.save(out_prefix.with_name(out_prefix.name + "_Signal_map.npy"), res["signal_map"])
-        np.save(out_prefix.with_name(out_prefix.name + "_Background_map.npy"), res["background_map"])
+        np.save(
+            out_prefix.with_name(out_prefix.name + "_Signal_map.npy"), res["signal_map"]
+        )
+        np.save(
+            out_prefix.with_name(out_prefix.name + "_Background_map.npy"),
+            res["background_map"],
+        )
+
 
 def main():
     args = build_argparser().parse_args()
@@ -678,13 +793,21 @@ def main():
     print("cuda_available:", torch.cuda.is_available())
     print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
     print("============================================\n")
-    
-    print("DIAG args:",
-          {"input_file": args.input_file, "entry": args.entry, "plane": args.plane,
-           "weight_file": args.weight_file, "model_key": getattr(args, "model_key", None),
-           "adc_lo": getattr(args, "adc_lo", None), "adc_hi": getattr(args, "adc_hi", None),
-           "normalize": getattr(args, "normalize", None)})
-    
+
+    print(
+        "DIAG args:",
+        {
+            "input_file": args.input_file,
+            "entry": args.entry,
+            "plane": args.plane,
+            "weight_file": args.weight_file,
+            "model_key": getattr(args, "model_key", None),
+            "adc_lo": getattr(args, "adc_lo", None),
+            "adc_hi": getattr(args, "adc_hi", None),
+            "normalize": getattr(args, "normalize", None),
+        },
+    )
+
     print("\n--- DIAG weights ---")
     print("weight_file:", args.weight_file)
     print("exists:", os.path.exists(args.weight_file))
@@ -710,6 +833,7 @@ def main():
 
     if args.from_csv:
         import pandas as pd
+
         df = pd.read_csv(args.from_csv)
 
         required = {"root_file", "entry_number", "n_pixels", "out_dir", "tag"}
@@ -725,8 +849,16 @@ def main():
             tag = str(row["tag"])
 
             # allow per-row override (optional)
-            wfile = str(row["weight_file"]) if "weight_file" in df.columns and isinstance(row["weight_file"], str) else args.weight_file
-            mkey  = str(row["model"]) if "model" in df.columns and isinstance(row["model"], str) else args.model
+            wfile = (
+                str(row["weight_file"])
+                if "weight_file" in df.columns and isinstance(row["weight_file"], str)
+                else args.weight_file
+            )
+            mkey = (
+                str(row["model"])
+                if "model" in df.columns and isinstance(row["model"], str)
+                else args.model
+            )
 
             # rebuild only if needed
             if (wfile != args.weight_file) or (mkey != args.model):
@@ -777,6 +909,7 @@ def main():
             save_npy=args.save_npy,
             device=device,
         )
+
 
 if __name__ == "__main__":
     main()

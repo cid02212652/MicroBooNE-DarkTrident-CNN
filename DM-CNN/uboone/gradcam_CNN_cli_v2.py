@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -20,17 +21,17 @@ import matplotlib.colors as colors
 # Diagnostics: functions to help
 # -----------------------------
 
-import os, sys, hashlib
-import numpy as np
-import torch
-import torch.nn as nn
+import sys
+import hashlib
 
-def sha256_file(path, chunk=1024*1024):
+
+def sha256_file(path, chunk=1024 * 1024):
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for b in iter(lambda: f.read(chunk), b""):
             h.update(b)
     return h.hexdigest()
+
 
 def tensor_fingerprint(x: torch.Tensor):
     """Stable-ish fingerprint for 'is this the exact same tensor?' checks."""
@@ -47,6 +48,7 @@ def tensor_fingerprint(x: torch.Tensor):
         "sha1": hashlib.sha1(arr.tobytes()).hexdigest(),
     }
 
+
 def gn_summary(model: nn.Module):
     """For spotting GN16 vs GN32 mismatches."""
     groups = []
@@ -58,6 +60,7 @@ def gn_summary(model: nn.Module):
         "unique_num_groups": sorted(set(groups)),
     }
 
+
 def score_summary_from_logits(logits: torch.Tensor):
     """For BCEWithLogitsLoss-style binary outputs: show logits + sigmoid-per-logit."""
     v = logits.detach().cpu().flatten()
@@ -65,9 +68,11 @@ def score_summary_from_logits(logits: torch.Tensor):
     out["sigmoid_per_logit"] = torch.sigmoid(v).tolist()
     return out
 
+
 # -----------------------------
 # Helpers: checkpoint + model detection (match occlusion)
 # -----------------------------
+
 
 def _extract_state(ckpt):
     if isinstance(ckpt, dict):
@@ -80,7 +85,9 @@ def _extract_state(ckpt):
 
 def _looks_like_resnet_state(state: Dict[str, torch.Tensor]) -> bool:
     keys = list(state.keys())
-    return any(k.startswith("net.layer") or ".layer" in k for k in keys) or any(k.startswith("layer") for k in keys)
+    return any(k.startswith("net.layer") or ".layer" in k for k in keys) or any(
+        k.startswith("layer") for k in keys
+    )
 
 
 def _infer_resnet_depth(state: Dict[str, torch.Tensor]) -> int:
@@ -112,9 +119,11 @@ def _summarise_ckpt(state: Dict[str, torch.Tensor]) -> str:
 # Models (match occlusion)
 # -----------------------------
 
+
 class MPIDBinary(nn.Module):
     def __init__(self):
         from mpid_net import mpid_net_binary
+
         super().__init__()
         self.net = mpid_net_binary.MPID()
 
@@ -129,7 +138,7 @@ def _replace_bn_with_gn(module: nn.Module, num_groups: int = 32):
                 num_groups=num_groups,
                 num_channels=child.num_features,
                 eps=child.eps,
-                affine=True
+                affine=True,
             )
             setattr(module, name, gn)
         else:
@@ -140,24 +149,26 @@ class ResNetBinaryWrapper(nn.Module):
     def __init__(self, depth: int = 34, norm: str = "gn", dropout: float = 0.5):
         super().__init__()
         from torchvision.models import resnet18, resnet34
+
         net = resnet34(weights=None) if depth == 34 else resnet18(weights=None)
 
-        net.conv1 = nn.Conv2d(1, net.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False)
+        net.conv1 = nn.Conv2d(
+            1, net.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False
+        )
         if norm == "gn":
             _replace_bn_with_gn(net)
 
         in_features = net.fc.in_features
-        net.fc = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(in_features, 2)
-        )
+        net.fc = nn.Sequential(nn.Dropout(p=dropout), nn.Linear(in_features, 2))
         self.net = net
 
     def forward(self, x):
         return self.net(x)
 
 
-def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device) -> Optional[str]:
+def _try_load(
+    model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device
+) -> Optional[str]:
     try:
         model.to(device)
         model.load_state_dict(state, strict=True)
@@ -167,7 +178,9 @@ def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.de
         return str(e)
 
 
-def build_model(model_key: str, weight_file: str, device: torch.device) -> Tuple[nn.Module, str]:
+def build_model(
+    model_key: str, weight_file: str, device: torch.device
+) -> Tuple[nn.Module, str]:
     model_key = (model_key or "auto").lower()
     ckpt = torch.load(weight_file, map_location=device)
     state = _extract_state(ckpt)
@@ -212,6 +225,7 @@ def build_model(model_key: str, weight_file: str, device: torch.device) -> Tuple
 # Shared: data + plotting (match occlusion)
 # -----------------------------
 
+
 def clamp_adc(img: torch.Tensor, adc_lo: float, adc_hi: float) -> torch.Tensor:
     img = img.clone()
     img[img > adc_hi] = adc_hi
@@ -240,7 +254,9 @@ def save_combined_map_png(
         original_img.T,
         origin="lower",
         cmap="jet",
-        norm=colors.PowerNorm(gamma=0.35, vmin=original_img.min(), vmax=original_img.max()),
+        norm=colors.PowerNorm(
+            gamma=0.35, vmin=original_img.min(), vmax=original_img.max()
+        ),
     )
     ax0.set_xlabel("Original Event", fontsize=35, labelpad=20)
     ax0.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
@@ -248,14 +264,26 @@ def save_combined_map_png(
     cbar0.set_label("ADC", fontsize=25)
     cbar0.ax.tick_params(labelsize=20)
 
-    im1 = ax1.imshow(signal_arr.T, origin="lower", cmap=cmap, vmin=np.min(signal_arr), vmax=np.max(signal_arr))
+    im1 = ax1.imshow(
+        signal_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(signal_arr),
+        vmax=np.max(signal_arr),
+    )
     ax1.set_xlabel("Signal Score Map", fontsize=35, labelpad=20)
     ax1.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar1 = fig.colorbar(im1, ax=ax1)
     cbar1.set_label("Score", fontsize=25)
     cbar1.ax.tick_params(labelsize=20)
 
-    im2 = ax2.imshow(background_arr.T, origin="lower", cmap=cmap, vmin=np.min(background_arr), vmax=np.max(background_arr))
+    im2 = ax2.imshow(
+        background_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(background_arr),
+        vmax=np.max(background_arr),
+    )
     ax2.set_xlabel("Background Score Map", fontsize=35, labelpad=20)
     ax2.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar2 = fig.colorbar(im2, ax=ax2)
@@ -285,13 +313,20 @@ def save_combined_map_png(
     if info_lines:
         info_text = "\n".join(info_lines)
         fig.text(
-            0.5, 0.01, info_text,
-            ha="center", va="bottom",
+            0.5,
+            0.01,
+            info_text,
+            ha="center",
+            va="bottom",
             fontsize=18,
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
         )
 
-    fig.savefig(out_prefix.with_name(out_prefix.name + f"_map_{layer_name}.png"), bbox_inches="tight", pad_inches=0.1)
+    fig.savefig(
+        out_prefix.with_name(out_prefix.name + f"_map_{layer_name}.png"),
+        bbox_inches="tight",
+        pad_inches=0.1,
+    )
     plt.close(fig)
 
 
@@ -307,9 +342,15 @@ def outputs_exist(out_prefix: Path, layer_name: str = None) -> bool:
 #     x = ds[entry][0].view(1, 1, 512, 512)
 #     return x
 
-def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.device) -> torch.Tensor:
+
+def load_image_from_root(
+    root_file: str, entry: int, plane: int, device: torch.device
+) -> torch.Tensor:
     from mpid_data import mpid_data_binary
-    ds = mpid_data_binary.MPID_Dataset(root_file, "image2d_image2d_binary_tree", device.type, plane=plane)
+
+    ds = mpid_data_binary.MPID_Dataset(
+        root_file, "image2d_image2d_binary_tree", device.type, plane=plane
+    )
     x, y, info, nevents = ds[entry]  # or ds[entry]
     print("\n--- DIAG event ---")
     print("ENTRY:", entry)
@@ -320,6 +361,7 @@ def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.d
     x = x.view(1, 1, 512, 512)  # match what you actually feed the network
     print("x_raw fingerprint:", tensor_fingerprint(x))
     return x
+
 
 def _rootname_simplify(root_file: str) -> str:
     root_name = Path(root_file).name
@@ -342,7 +384,7 @@ def _norm01(a: np.ndarray) -> np.ndarray:
 def _active_mask_from_x(x: torch.Tensor, threshold: float) -> "np.ndarray":
     # x: [1,1,H,W]
     arr = x.detach().cpu().numpy()[0, 0]
-    return (arr > float(threshold))
+    return arr > float(threshold)
 
 
 def _topk_mask(attr: np.ndarray, frac: float, use_abs: bool = False) -> np.ndarray:
@@ -364,20 +406,23 @@ def _topk_mask(attr: np.ndarray, frac: float, use_abs: bool = False) -> np.ndarr
     return m.reshape(a.shape)
 
 
-def _overlap_topk_oncharge(attr: np.ndarray, active_mask: np.ndarray, topk_frac: float, use_abs: bool = False) -> float:
+def _overlap_topk_oncharge(
+    attr: np.ndarray, active_mask: np.ndarray, topk_frac: float, use_abs: bool = False
+) -> float:
     topk = _topk_mask(attr, topk_frac, use_abs=use_abs)
     denom = float(topk.sum())
     if denom <= 0:
-        return float('nan')
+        return float("nan")
     return float((topk & active_mask).sum()) / denom
 
 
 def _auc(y, x):
     import numpy as _np
+
     y = _np.asarray(y, dtype=float)
     x = _np.asarray(x, dtype=float)
     if y.size < 2:
-        return float('nan')
+        return float("nan")
     return float(_np.trapezoid(y, x))
 
 
@@ -440,7 +485,7 @@ def _deletion_insertion_curves(
             mask = torch.from_numpy(mask_flat.reshape(H, W)).to(x.device)
             rmask = torch.from_numpy(rmask_flat.reshape(H, W)).to(x.device)
 
-            mask4 = mask.unsqueeze(0).unsqueeze(0)   # [1,1,H,W]
+            mask4 = mask.unsqueeze(0).unsqueeze(0)  # [1,1,H,W]
             rmask4 = rmask.unsqueeze(0).unsqueeze(0)
 
             x_del = x.clone()
@@ -478,8 +523,9 @@ def _deletion_insertion_curves(
         "random_deletion_signal": _auc(out["random_deletion"]["signal"], fracs),
         "random_insertion_signal": _auc(out["random_insertion"]["signal"], fracs),
         "random_deletion_background": _auc(out["random_deletion"]["background"], fracs),
-        "random_insertion_background": _auc(out["random_insertion"]["background"], fracs),
-    }
+        "random_insertion_background": _auc(
+            out["random_insertion"]["background"], fracs
+        ),
     }
     return out
 
@@ -495,29 +541,29 @@ def _preset_layer_name(model: nn.Module, preset: str) -> str:
 
     You can always override with --layer-name.
     """
-    preset = (preset or 'mid32').lower()
+    preset = (preset or "mid32").lower()
     names = set(n for n, _ in model.named_modules())
 
-    is_resnet = any(n.startswith('net.layer') for n in names)
+    is_resnet = any(n.startswith("net.layer") for n in names)
 
     if is_resnet:
         mapping = {
-            'mid128': 'net.layer1',
-            'mid64': 'net.layer2',
-            'mid32': 'net.layer3',
-            'final': 'net.layer4',
+            "mid128": "net.layer1",
+            "mid64": "net.layer2",
+            "mid32": "net.layer3",
+            "final": "net.layer4",
         }
-        cand = mapping.get(preset, 'net.layer3')
-        return cand if cand in names else 'net.layer4'
+        cand = mapping.get(preset, "net.layer3")
+        return cand if cand in names else "net.layer4"
 
     # MPID / other
     mapping = {
-        'mid128': 'features.7',
-        'mid64': 'features.14',
-        'mid32': 'features.21',
-        'final': 'features.31',
+        "mid128": "features.7",
+        "mid64": "features.14",
+        "mid32": "features.21",
+        "final": "features.31",
     }
-    cand = mapping.get(preset, 'features.21')
+    cand = mapping.get(preset, "features.21")
     if cand in names:
         return cand
 
@@ -530,7 +576,7 @@ def _preset_layer_name(model: nn.Module, preset: str) -> str:
         return last_conv
 
     # ultimate fallback
-    return 'features.21'
+    return "features.21"
 
 
 def get_module_by_name(model: nn.Module, name: str) -> nn.Module:
@@ -542,13 +588,15 @@ def get_module_by_name(model: nn.Module, name: str) -> nn.Module:
         f"Layer '{name}' not found. Examples: net.layer4, net.layer4.1.conv2, features.0"
     )
 
-def default_cam_layer_name(model: nn.Module, preset: str = 'mid32') -> str:
+
+def default_cam_layer_name(model: nn.Module, preset: str = "mid32") -> str:
     return _preset_layer_name(model, preset)
 
 
 # -----------------------------
 # CAM implementations (Grad-CAM and Grad-CAM++)
 # -----------------------------
+
 
 class _HookedActivations:
     def __init__(self, model: nn.Module, layer: nn.Module):
@@ -573,7 +621,9 @@ class _HookedActivations:
             pass
 
 
-def _forward_backward(model: nn.Module, x: torch.Tensor, class_idx: int, hook: _HookedActivations):
+def _forward_backward(
+    model: nn.Module, x: torch.Tensor, class_idx: int, hook: _HookedActivations
+):
     logits = model(x)
     score = logits[:, class_idx].sum()
     model.zero_grad(set_to_none=True)
@@ -583,18 +633,20 @@ def _forward_backward(model: nn.Module, x: torch.Tensor, class_idx: int, hook: _
     return hook.activations, hook.gradients
 
 
-def gradcam_map(model: nn.Module, x: torch.Tensor, class_idx: int, layer: nn.Module) -> np.ndarray:
+def gradcam_map(
+    model: nn.Module, x: torch.Tensor, class_idx: int, layer: nn.Module
+) -> np.ndarray:
     hook = _HookedActivations(model, layer)
     try:
         acts, grads = _forward_backward(model, x, class_idx, hook)  # [B,C,H,W]
 
         # inside your forward hook
         print("captured activations shape:", tuple(acts.shape))
-        
-        weights = torch.mean(grads, dim=(2, 3), keepdim=True)       # [B,C,1,1]
-        cam = torch.sum(weights * acts, dim=1, keepdim=False)       # [B,H,W]
+
+        weights = torch.mean(grads, dim=(2, 3), keepdim=True)  # [B,C,1,1]
+        cam = torch.sum(weights * acts, dim=1, keepdim=False)  # [B,H,W]
         cam = torch.relu(cam)
-        
+
         # cam: [B, H_l, W_l]  -> upsample to input size
         cam = F.interpolate(
             cam.unsqueeze(1),
@@ -611,7 +663,13 @@ def gradcam_map(model: nn.Module, x: torch.Tensor, class_idx: int, layer: nn.Mod
         hook.close()
 
 
-def gradcampp_map(model: nn.Module, x: torch.Tensor, class_idx: int, layer: nn.Module, eps: float = 1e-8) -> np.ndarray:
+def gradcampp_map(
+    model: nn.Module,
+    x: torch.Tensor,
+    class_idx: int,
+    layer: nn.Module,
+    eps: float = 1e-8,
+) -> np.ndarray:
     """
     Practical Grad-CAM++ variant:
       alpha_ij^k = (dY/dA_ij^k)^2 / (2*(dY/dA_ij^k)^2 + A_ij^k*(dY/dA_ij^k)^3)
@@ -632,10 +690,10 @@ def gradcampp_map(model: nn.Module, x: torch.Tensor, class_idx: int, layer: nn.M
         denom = 2.0 * grads2 + acts * grads3
         denom = torch.where(denom != 0.0, denom, torch.full_like(denom, eps))
 
-        alpha = grads2 / denom                                     # [B,C,H,W]
+        alpha = grads2 / denom  # [B,C,H,W]
         weights = torch.sum(alpha * grads_relu, dim=(2, 3), keepdim=True)  # [B,C,1,1]
 
-        cam = torch.sum(weights * acts, dim=1, keepdim=False)      # [B,H,W]
+        cam = torch.sum(weights * acts, dim=1, keepdim=False)  # [B,H,W]
         cam = torch.relu(cam)
 
         # cam: [B, H_l, W_l]  -> upsample to input size
@@ -657,6 +715,7 @@ def gradcampp_map(model: nn.Module, x: torch.Tensor, class_idx: int, layer: nn.M
 # -----------------------------
 # Run one (two-class maps)
 # -----------------------------
+
 
 def run_one(
     model: nn.Module,
@@ -687,7 +746,11 @@ def run_one(
 
     root_name = _rootname_simplify(root_file)
     method_tag = "gradcampp" if method == "gradcampp" else "gradcam"
-    out_prefix = out_dir / (f"{method_tag}__ENTRY_{entry}__{root_name}" if root_name else f"{method_tag}__ENTRY_{entry}")
+    out_prefix = out_dir / (
+        f"{method_tag}__ENTRY_{entry}__{root_name}"
+        if root_name
+        else f"{method_tag}__ENTRY_{entry}"
+    )
 
     if outputs_exist(out_prefix, layer_name):
         print(f"[skip] exists: {out_prefix}")
@@ -717,7 +780,10 @@ def run_one(
     all_names = [n for n, _ in model.named_modules()]
     print("layer exists?:", layer_name in all_names)
     if layer_name not in all_names:
-        print("closest matches:", [n for n in all_names if layer_name.split(".")[-1] in n][:30])
+        print(
+            "closest matches:",
+            [n for n in all_names if layer_name.split(".")[-1] in n][:30],
+        )
     print("--------------------------\n")
 
     if method == "gradcampp":
@@ -738,13 +804,17 @@ def run_one(
     diagnostics = {}
     try:
         active = _active_mask_from_x(x, active_threshold)
-        diagnostics['active_threshold'] = float(active_threshold)
-        diagnostics['topk_frac'] = float(topk_frac)
-        diagnostics['overlap_topk_signal'] = _overlap_topk_oncharge(sig_map, active, topk_frac)
-        diagnostics['overlap_topk_background'] = _overlap_topk_oncharge(bkg_map, active, topk_frac)
-        diagnostics['active_frac'] = float(active.mean())
+        diagnostics["active_threshold"] = float(active_threshold)
+        diagnostics["topk_frac"] = float(topk_frac)
+        diagnostics["overlap_topk_signal"] = _overlap_topk_oncharge(
+            sig_map, active, topk_frac
+        )
+        diagnostics["overlap_topk_background"] = _overlap_topk_oncharge(
+            bkg_map, active, topk_frac
+        )
+        diagnostics["active_frac"] = float(active.mean())
     except Exception as e:
-        diagnostics['overlap_error'] = str(e)
+        diagnostics["overlap_error"] = str(e)
 
     if diag_curves:
         try:
@@ -759,10 +829,9 @@ def run_one(
                 baseline=torch.zeros_like(x),
                 use_abs_rank=True,
             )
-            diagnostics['curves_signalmap'] = curves
+            diagnostics["curves_signalmap"] = curves
         except Exception as e:
-            diagnostics['curves_error'] = str(e)
-
+            diagnostics["curves_error"] = str(e)
 
     save_combined_map_png(
         signal_arr=sig_map,
@@ -810,30 +879,74 @@ def run_one(
 # CLI (match occlusion style)
 # -----------------------------
 
+
 def build_argparser():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="auto", help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn")
+    p.add_argument(
+        "--model",
+        default="auto",
+        help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn",
+    )
     p.add_argument("--weight-file", required=True)
 
-    p.add_argument("--input-file", default=None, help="Path to ROOT file (inside container: /data/...)")
-    p.add_argument("--entry", type=int, default=None, help="Single entry index in ROOT tree")
-    p.add_argument("--entries", type=int, default=1, help="How many entries to run starting at --entry")
+    p.add_argument(
+        "--input-file",
+        default=None,
+        help="Path to ROOT file (inside container: /data/...)",
+    )
+    p.add_argument(
+        "--entry", type=int, default=None, help="Single entry index in ROOT tree"
+    )
+    p.add_argument(
+        "--entries",
+        type=int,
+        default=1,
+        help="How many entries to run starting at --entry",
+    )
 
-    p.add_argument("--from-csv", default=None, help="CSV with columns: root_file, entry_number, n_pixels, out_dir, tag, weight_file(optional), model(optional)")
-    p.add_argument("--larcv-base", default="/data", help="Base bind inside container for ROOTs (default /data)")
+    p.add_argument(
+        "--from-csv",
+        default=None,
+        help="CSV with columns: root_file, entry_number, n_pixels, out_dir, tag, weight_file(optional), model(optional)",
+    )
+    p.add_argument(
+        "--larcv-base",
+        default="/data",
+        help="Base bind inside container for ROOTs (default /data)",
+    )
 
     p.add_argument("--output-dir", required=True)
     p.add_argument("--tag", default="")
 
     p.add_argument("--method", default="gradcampp", choices=["gradcam", "gradcampp"])
-    p.add_argument("--layer-name", default=None, help="Layer to hook (overrides --layer-preset)")
-    p.add_argument("--layer-preset", default="mid32", choices=["mid128", "mid64", "mid32", "final"],
-                   help="Convenience layer choice matched by spatial resolution across models")
+    p.add_argument(
+        "--layer-name", default=None, help="Layer to hook (overrides --layer-preset)"
+    )
+    p.add_argument(
+        "--layer-preset",
+        default="mid32",
+        choices=["mid128", "mid64", "mid32", "final"],
+        help="Convenience layer choice matched by spatial resolution across models",
+    )
 
     # Diagnostics (optional)
-    p.add_argument("--active-threshold", type=float, default=0.0, help="Active-pixel threshold for on-charge overlap")
-    p.add_argument("--topk-frac", type=float, default=0.01, help="Top fraction of attribution pixels for overlap/curves")
-    p.add_argument("--diag-curves", action="store_true", help="Run deletion/insertion curves (extra forward passes)")
+    p.add_argument(
+        "--active-threshold",
+        type=float,
+        default=0.0,
+        help="Active-pixel threshold for on-charge overlap",
+    )
+    p.add_argument(
+        "--topk-frac",
+        type=float,
+        default=0.01,
+        help="Top fraction of attribution pixels for overlap/curves",
+    )
+    p.add_argument(
+        "--diag-curves",
+        action="store_true",
+        help="Run deletion/insertion curves (extra forward passes)",
+    )
     p.add_argument("--curve-steps", type=int, default=11)
     p.add_argument("--curve-seed", type=int, default=123)
 
@@ -860,13 +973,21 @@ def main():
     print("cuda_available:", torch.cuda.is_available())
     print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
     print("============================================\n")
-    
-    print("DIAG args:",
-          {"input_file": args.input_file, "entry": args.entry, "plane": args.plane,
-           "weight_file": args.weight_file, "model_key": getattr(args, "model_key", None),
-           "adc_lo": getattr(args, "adc_lo", None), "adc_hi": getattr(args, "adc_hi", None),
-           "normalize": getattr(args, "normalize", None)})
-    
+
+    print(
+        "DIAG args:",
+        {
+            "input_file": args.input_file,
+            "entry": args.entry,
+            "plane": args.plane,
+            "weight_file": args.weight_file,
+            "model_key": getattr(args, "model_key", None),
+            "adc_lo": getattr(args, "adc_lo", None),
+            "adc_hi": getattr(args, "adc_hi", None),
+            "normalize": getattr(args, "normalize", None),
+        },
+    )
+
     print("\n--- DIAG weights ---")
     print("weight_file:", args.weight_file)
     print("exists:", os.path.exists(args.weight_file))
@@ -890,6 +1011,7 @@ def main():
 
     if args.from_csv:
         import pandas as pd
+
         df = pd.read_csv(args.from_csv)
         required = {"root_file", "entry_number", "n_pixels", "out_dir", "tag"}
         missing = required - set(df.columns)
@@ -906,8 +1028,16 @@ def main():
             out_dir = str(row["out_dir"])
             tag = str(row["tag"])
 
-            wfile = str(row["weight_file"]) if ("weight_file" in df.columns and isinstance(row["weight_file"], str)) else args.weight_file
-            mkey = str(row["model"]) if ("model" in df.columns and isinstance(row["model"], str)) else args.model
+            wfile = (
+                str(row["weight_file"])
+                if ("weight_file" in df.columns and isinstance(row["weight_file"], str))
+                else args.weight_file
+            )
+            mkey = (
+                str(row["model"])
+                if ("model" in df.columns and isinstance(row["model"], str))
+                else args.model
+            )
 
             if (wfile != args.weight_file) or (mkey != args.model):
                 model_i, resolved_i = build_model(mkey, wfile, device)

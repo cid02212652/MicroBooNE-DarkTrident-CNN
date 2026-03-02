@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
-import os, re, shutil, subprocess, time
+import os
+import re
+import shutil
+import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
 # --- Base paths
-BASE    = os.path.expanduser("~/dark_tridents_wspace")
-CFG     = os.path.join(BASE, "DM-CNN", "cfg", "inference_config_binary_resnet_1.cfg")
-JOBDIR  = os.path.join(BASE, "DM-CNN")
+BASE = os.path.expanduser("~/dark_tridents_wspace")
+CFG = os.path.join(BASE, "DM-CNN", "cfg", "inference_config_binary_resnet_1.cfg")
+JOBDIR = os.path.join(BASE, "DM-CNN")
 JOBFILE = "inference_dmcnn_1.job"
 
 # --- Inputs
 RUN1_BASE = "/vols/sbn/uboone/darkTridents/data/larcv_files"
-ROOT_SUB  = "run1_samples"                 # ROOTs live in RUN1_BASE/ROOT_SUB/
-CSV_DIR   = os.path.join(BASE, "run1_samples")  # your 3 CSVs live here
+ROOT_SUB = "run1_samples"  # ROOTs live in RUN1_BASE/ROOT_SUB/
+CSV_DIR = os.path.join(BASE, "run1_samples")  # your 3 CSVs live here
 
 # --- Outputs (write directly here by editing output_dir in cfg)
 OUT_DIR = os.path.join(BASE, "outputs", "inference", "run1_samples_resnet34_bn")
@@ -20,16 +24,20 @@ OUT_DIR = os.path.join(BASE, "outputs", "inference", "run1_samples_resnet34_bn")
 DRYRUN = False
 
 
-def read(p):  return Path(p).read_text(encoding="utf-8")
-def write(p,s): Path(p).write_text(s, encoding="utf-8")
+def read(p):
+    return Path(p).read_text(encoding="utf-8")
+
+
+def write(p, s):
+    Path(p).write_text(s, encoding="utf-8")
 
 
 def edit_cfg(text, file_root, file_csv, tag, out_dir):
     repls = [
-        (r'^\s*name\s*=.*$',       f'name=str("{tag}")'),
-        (r'^\s*input_file\s*=.*$', f'input_file = "{file_root}"'),
-        (r'^\s*input_csv\s*=.*$',  f'input_csv = "{file_csv}"'),
-        (r'^\s*output_dir\s*=.*$', f'output_dir = "{out_dir}/"'),
+        (r"^\s*name\s*=.*$", f'name=str("{tag}")'),
+        (r"^\s*input_file\s*=.*$", f'input_file = "{file_root}"'),
+        (r"^\s*input_csv\s*=.*$", f'input_csv = "{file_csv}"'),
+        (r"^\s*output_dir\s*=.*$", f'output_dir = "{out_dir}/"'),
     ]
     new = text
     for pat, rep in repls:
@@ -41,7 +49,9 @@ def edit_cfg(text, file_root, file_csv, tag, out_dir):
 
 
 def submit():
-    proc = subprocess.run(["condor_submit", JOBFILE], cwd=JOBDIR, text=True, capture_output=True)
+    proc = subprocess.run(
+        ["condor_submit", JOBFILE], cwd=JOBDIR, text=True, capture_output=True
+    )
     print(proc.stdout.strip())
     if proc.returncode != 0 and proc.stderr:
         print(proc.stderr.strip())
@@ -107,7 +117,7 @@ def main():
             write(CFG, edited)
 
             for ln in edited.splitlines():
-                if re.match(r'^\s*(name|input_file|input_csv|output_dir)\s*=', ln):
+                if re.match(r"^\s*(name|input_file|input_csv|output_dir)\s*=", ln):
                     print("[cfg]", ln)
 
             if DRYRUN:

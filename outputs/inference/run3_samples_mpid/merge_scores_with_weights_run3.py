@@ -5,16 +5,20 @@ import pandas as pd
 KEYS = ["run_number", "subrun_number", "event_number"]
 
 PAIRS = [
-    ("run3_dirt_larcv_cropped_scores.csv",
-     "run3_dirt_CNN.csv",
-     "run3_dirt_merged_with_weights.csv"),
-
-    ("run3_nu_overlay_larcv_cropped_scores.csv",
-     "run3_nu_overlay_CNN.csv",
-     "run3_nu_overlay_merged_with_weights.csv"),
+    (
+        "run3_dirt_larcv_cropped_scores.csv",
+        "run3_dirt_CNN.csv",
+        "run3_dirt_merged_with_weights.csv",
+    ),
+    (
+        "run3_nu_overlay_larcv_cropped_scores.csv",
+        "run3_nu_overlay_CNN.csv",
+        "run3_nu_overlay_merged_with_weights.csv",
+    ),
 ]
 
 MERGE_HOW = "inner"  # change to "left" if you want to keep all score rows
+
 
 def force_int_keys(df, keys):
     for k in keys:
@@ -22,11 +26,13 @@ def force_int_keys(df, keys):
         df[k] = pd.to_numeric(df[k], errors="raise").astype("int64")
     return df
 
+
 def clean_weight(arr):
     arr = arr.astype(float, copy=False)
     bad = (~np.isfinite(arr)) | (arr <= 0) | (arr > 50)
     arr[bad] = 1.0
     return arr
+
 
 for scores_file, weights_file, out_file in PAIRS:
     print("\nMerging:")
@@ -48,8 +54,9 @@ for scores_file, weights_file, out_file in PAIRS:
     wdf = force_int_keys(wdf, KEYS)
 
     # compute product weight
-    w = (wdf["ppfx_cv_good"].to_numpy(dtype=float) *
-         wdf["spine_tune_good"].to_numpy(dtype=float))
+    w = wdf["ppfx_cv_good"].to_numpy(dtype=float) * wdf["spine_tune_good"].to_numpy(
+        dtype=float
+    )
 
     # clean weights: inf/nan/<=0/>50 -> 1
     w = clean_weight(w)

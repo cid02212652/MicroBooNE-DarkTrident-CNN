@@ -12,6 +12,7 @@ import torch.nn.functional as F
 
 # Matplotlib only for saving plots (Agg backend safe on batch)
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -34,9 +35,8 @@ def _extract_state(ckpt):
 
 def _looks_like_resnet_state(state: Dict[str, torch.Tensor]) -> bool:
     keys = list(state.keys())
-    return (
-        any(k.startswith("net.layer") or ".layer" in k for k in keys)
-        or any(k.startswith("layer") for k in keys)
+    return any(k.startswith("net.layer") or ".layer" in k for k in keys) or any(
+        k.startswith("layer") for k in keys
     )
 
 
@@ -71,6 +71,7 @@ def _summarise_ckpt(state: Dict[str, torch.Tensor]) -> str:
 class MPIDBinary(nn.Module):
     def __init__(self):
         from mpid_net import mpid_net_binary
+
         super().__init__()
         self.net = mpid_net_binary.MPID()
 
@@ -119,7 +120,9 @@ class ResNetBinaryWrapper(nn.Module):
         return self.net(x)
 
 
-def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device) -> Optional[str]:
+def _try_load(
+    model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device
+) -> Optional[str]:
     try:
         model.to(device)
         model.load_state_dict(state, strict=True)
@@ -129,7 +132,9 @@ def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.de
         return str(e)
 
 
-def build_model(model_key: str, weight_file: str, device: torch.device) -> Tuple[nn.Module, str]:
+def build_model(
+    model_key: str, weight_file: str, device: torch.device
+) -> Tuple[nn.Module, str]:
     """
     Robust loader:
       - tries requested model_key first
@@ -218,7 +223,9 @@ def save_combined_map_png(
         original_img.T,
         origin="lower",
         cmap="jet",
-        norm=colors.PowerNorm(gamma=0.35, vmin=original_img.min(), vmax=original_img.max()),
+        norm=colors.PowerNorm(
+            gamma=0.35, vmin=original_img.min(), vmax=original_img.max()
+        ),
     )
     ax0.set_xlabel("Original Event", fontsize=35, labelpad=20)
     ax0.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
@@ -226,14 +233,26 @@ def save_combined_map_png(
     cbar0.set_label("ADC", fontsize=25)
     cbar0.ax.tick_params(labelsize=20)
 
-    im1 = ax1.imshow(signal_arr.T, origin="lower", cmap=cmap, vmin=np.min(signal_arr), vmax=np.max(signal_arr))
+    im1 = ax1.imshow(
+        signal_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(signal_arr),
+        vmax=np.max(signal_arr),
+    )
     ax1.set_xlabel("Signal Score Map", fontsize=35, labelpad=20)
     ax1.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar1 = fig.colorbar(im1, ax=ax1)
     cbar1.set_label("Score", fontsize=25)
     cbar1.ax.tick_params(labelsize=20)
 
-    im2 = ax2.imshow(background_arr.T, origin="lower", cmap=cmap, vmin=np.min(background_arr), vmax=np.max(background_arr))
+    im2 = ax2.imshow(
+        background_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(background_arr),
+        vmax=np.max(background_arr),
+    )
     ax2.set_xlabel("Background Score Map", fontsize=35, labelpad=20)
     ax2.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar2 = fig.colorbar(im2, ax=ax2)
@@ -272,7 +291,11 @@ def save_combined_map_png(
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
         )
 
-    fig.savefig(out_prefix.with_name(out_prefix.name + "_map.png"), bbox_inches="tight", pad_inches=0.1)
+    fig.savefig(
+        out_prefix.with_name(out_prefix.name + "_map.png"),
+        bbox_inches="tight",
+        pad_inches=0.1,
+    )
     plt.close(fig)
 
 
@@ -282,8 +305,11 @@ def outputs_exist(out_prefix: Path) -> bool:
     return map_png.exists() and meta_js.exists()
 
 
-def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.device) -> torch.Tensor:
+def load_image_from_root(
+    root_file: str, entry: int, plane: int, device: torch.device
+) -> torch.Tensor:
     from mpid_data import mpid_data_binary
+
     ds = mpid_data_binary.MPID_Dataset(
         root_file,
         "image2d_image2d_binary_tree",
@@ -319,6 +345,7 @@ def get_module_by_name(model: nn.Module, name: str) -> nn.Module:
             return m
     raise KeyError(f"Layer '{name}' not found in model.named_modules().")
 
+
 def pick_default_layer_name(model: nn.Module) -> str:
     names = [n for n, _ in model.named_modules()]
     # ResNet wrapper typically has "net.layer4"
@@ -328,10 +355,11 @@ def pick_default_layer_name(model: nn.Module) -> str:
     if "features" in names:
         return "features.30"
 
+
 @torch.no_grad()
 def scorecam_maps(
     model: nn.Module,
-    x: torch.Tensor,              # [1,1,H,W] on device
+    x: torch.Tensor,  # [1,1,H,W] on device
     layer: nn.Module,
     max_channels: int = 64,
     batch_size: int = 16,
@@ -387,15 +415,17 @@ def scorecam_maps(
         B = a.shape[0]
 
         # upsample to input resolution and normalize each mask to [0,1]
-        masks = F.interpolate(a.unsqueeze(1), size=(H, W), mode="bilinear", align_corners=False)  # [B,1,H,W]
+        masks = F.interpolate(
+            a.unsqueeze(1), size=(H, W), mode="bilinear", align_corners=False
+        )  # [B,1,H,W]
         m_min = masks.amin(dim=(2, 3), keepdim=True)
         masks = masks - m_min
         m_max = masks.amax(dim=(2, 3), keepdim=True)
         masks = masks / (m_max + eps)
 
         xb = x.repeat(B, 1, 1, 1) * masks  # [B,1,H,W]
-        logits = model(xb)                 # [B,2]
-        probs = torch.sigmoid(logits)      # [B,2]
+        logits = model(xb)  # [B,2]
+        probs = torch.sigmoid(logits)  # [B,2]
 
         w_sig = probs[:, 0].view(B, 1, 1)  # [B,1,1]
         w_bkg = probs[:, 1].view(B, 1, 1)
@@ -408,8 +438,12 @@ def scorecam_maps(
     cam_bkg = torch.relu(cam_bkg)
 
     # 4) upsample to input resolution
-    cam_sig_up = F.interpolate(cam_sig.view(1, 1, h, w), size=(H, W), mode="bilinear", align_corners=False)[0, 0]
-    cam_bkg_up = F.interpolate(cam_bkg.view(1, 1, h, w), size=(H, W), mode="bilinear", align_corners=False)[0, 0]
+    cam_sig_up = F.interpolate(
+        cam_sig.view(1, 1, h, w), size=(H, W), mode="bilinear", align_corners=False
+    )[0, 0]
+    cam_bkg_up = F.interpolate(
+        cam_bkg.view(1, 1, h, w), size=(H, W), mode="bilinear", align_corners=False
+    )[0, 0]
 
     sig_np = cam_sig_up.detach().cpu().numpy().astype(np.float32)
     bkg_np = cam_bkg_up.detach().cpu().numpy().astype(np.float32)
@@ -421,15 +455,38 @@ def scorecam_maps(
 # -----------------------------
 def build_argparser():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="auto", help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn")
+    p.add_argument(
+        "--model",
+        default="auto",
+        help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn",
+    )
     p.add_argument("--weight-file", required=True)
 
-    p.add_argument("--input-file", default=None, help="Path to ROOT file (inside container: /data/...)")
-    p.add_argument("--entry", type=int, default=None, help="Single entry index in ROOT tree")
-    p.add_argument("--entries", type=int, default=1, help="How many entries to run starting at --entry")
+    p.add_argument(
+        "--input-file",
+        default=None,
+        help="Path to ROOT file (inside container: /data/...)",
+    )
+    p.add_argument(
+        "--entry", type=int, default=None, help="Single entry index in ROOT tree"
+    )
+    p.add_argument(
+        "--entries",
+        type=int,
+        default=1,
+        help="How many entries to run starting at --entry",
+    )
 
-    p.add_argument("--from-csv", default=None, help="CSV with columns: root_file, entry_number, out_dir, tag, n_pixels (plus optional weight_file, model, layer_name)")
-    p.add_argument("--larcv-base", default="/data", help="Base path inside container for ROOTs (default /data)")
+    p.add_argument(
+        "--from-csv",
+        default=None,
+        help="CSV with columns: root_file, entry_number, out_dir, tag, n_pixels (plus optional weight_file, model, layer_name)",
+    )
+    p.add_argument(
+        "--larcv-base",
+        default="/data",
+        help="Base path inside container for ROOTs (default /data)",
+    )
 
     p.add_argument("--output-dir", required=True)
     p.add_argument("--tag", default="")
@@ -445,11 +502,34 @@ def build_argparser():
     p.add_argument("--gpuid", default="0")
     p.add_argument("--n-pixels", type=int, default=None)
 
-    p.add_argument("--layer-name", default=None, help="Layer to hook (e.g. net.layer4.1.conv2). If omitted, choose a reasonable default.")
-    p.add_argument("--scorecam-max-channels", type=int, default=64, help="Use up to this many channels from the hooked layer (runtime control).")
-    p.add_argument("--scorecam-batch", type=int, default=16, help="How many masked inputs to score per forward batch.")
-    p.add_argument("--scorecam-channel-mode", default="topk", choices=["topk", "first"], help="Which channels to use.")
-    p.add_argument("--scorecam-no-relu-acts", action="store_true", help="If set, do NOT ReLU the layer activations before using them as masks.")
+    p.add_argument(
+        "--layer-name",
+        default=None,
+        help="Layer to hook (e.g. net.layer4.1.conv2). If omitted, choose a reasonable default.",
+    )
+    p.add_argument(
+        "--scorecam-max-channels",
+        type=int,
+        default=64,
+        help="Use up to this many channels from the hooked layer (runtime control).",
+    )
+    p.add_argument(
+        "--scorecam-batch",
+        type=int,
+        default=16,
+        help="How many masked inputs to score per forward batch.",
+    )
+    p.add_argument(
+        "--scorecam-channel-mode",
+        default="topk",
+        choices=["topk", "first"],
+        help="Which channels to use.",
+    )
+    p.add_argument(
+        "--scorecam-no-relu-acts",
+        action="store_true",
+        help="If set, do NOT ReLU the layer activations before using them as masks.",
+    )
     return p
 
 
@@ -497,7 +577,9 @@ def run_one(
         return
 
     # load + clamp like occlusion
-    x = load_image_from_root(root_file, entry, plane, device)  # [1,1,512,512] (likely on CPU)
+    x = load_image_from_root(
+        root_file, entry, plane, device
+    )  # [1,1,512,512] (likely on CPU)
     x = x.to(device)
     x = clamp_adc(x, adc_lo, adc_hi)
 
@@ -512,7 +594,9 @@ def run_one(
     if layer_name is None:
         layer_name = pick_default_layer_name(model)
         if layer_name == "":
-            raise RuntimeError("Could not infer a default layer; please pass --layer-name.")
+            raise RuntimeError(
+                "Could not infer a default layer; please pass --layer-name."
+            )
     layer = get_module_by_name(model, layer_name)
 
     sig_map, bkg_map = scorecam_maps(
@@ -586,7 +670,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model, resolved_key = build_model(args.model, args.weight_file, device)
-    print(f"[info] requested_model={args.model} resolved_model={resolved_key} device={device}")
+    print(
+        f"[info] requested_model={args.model} resolved_model={resolved_key} device={device}"
+    )
 
     if args.from_csv:
         import pandas as pd

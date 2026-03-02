@@ -68,10 +68,12 @@ class MPID(nn.Module):
                     backbone.conv1.weight[:, :3, :, :] = old_conv.weight
                     mean_rgb = old_conv.weight.mean(dim=1, keepdim=True)
                     for c in range(3, in_channels):
-                        backbone.conv1.weight[:, c:c+1, :, :] = mean_rgb
+                        backbone.conv1.weight[:, c : c + 1, :, :] = mean_rgb
                 else:
                     # in_channels == 2 or 3
-                    backbone.conv1.weight[:, :in_channels, :, :] = old_conv.weight[:, :in_channels, :, :]
+                    backbone.conv1.weight[:, :in_channels, :, :] = old_conv.weight[
+                        :, :in_channels, :, :
+                    ]
 
         # --- Replace classifier head to output 2 logits ---
         in_feats = backbone.fc.in_features
@@ -101,7 +103,7 @@ class MPID(nn.Module):
             return models.resnet34(pretrained=pretrained, norm_layer=norm_layer)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     x = torch.ones([512, 512])
     mpid = MPID(arch="resnet18", in_channels=1, pretrained=False)
     print(mpid)

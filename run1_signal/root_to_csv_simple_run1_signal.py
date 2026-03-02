@@ -1,5 +1,8 @@
-import glob, csv, os
+import glob
+import csv
+import os
 import uproot
+
 
 def find_branch(keys, endswith):
     for k in keys:
@@ -7,7 +10,8 @@ def find_branch(keys, endswith):
             return k
     return None
 
-IN_DIR  = "/vols/sbn/uboone/darkTridents/data/larcv_files/run1_signal"
+
+IN_DIR = "/vols/sbn/uboone/darkTridents/data/larcv_files/run1_signal"
 OUT_DIR = "/home/hep/an1522/dark_tridents_wspace/run1_signal"
 
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -24,9 +28,9 @@ for rootpath in sorted(glob.glob(IN_DIR + "/*.root")):
     tree = f[fkeys[0]]  # first tree
     keys = list(tree.keys())
 
-    run_b    = find_branch(keys, "/_run")
+    run_b = find_branch(keys, "/_run")
     subrun_b = find_branch(keys, "/_subrun")
-    event_b  = find_branch(keys, "/_event")
+    event_b = find_branch(keys, "/_event")
 
     if not (run_b and subrun_b and event_b):
         print("SKIP (no run/subrun/event):", rootfile)

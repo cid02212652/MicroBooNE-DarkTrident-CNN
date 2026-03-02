@@ -6,12 +6,14 @@ import importlib.util
 
 import torch
 
+
 def import_from_path(py_path: Path, module_name: str):
     spec = importlib.util.spec_from_file_location(module_name, py_path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
     return mod
+
 
 def export(model, x, outpath: Path, output_name="logits"):
     outpath.parent.mkdir(parents=True, exist_ok=True)
@@ -26,6 +28,7 @@ def export(model, x, outpath: Path, output_name="logits"):
         dynamic_axes={"input": {0: "batch"}, output_name: {0: "batch"}},
     )
     print("[OK]", outpath)
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -46,7 +49,12 @@ def main():
     resnet_mod = import_from_path(Path(args.resnet_file), "mpid_resnet_mod")
     MPIDResNet = resnet_mod.MPID
 
-    for arch, norm in [("resnet18","bn"), ("resnet18","gn"), ("resnet34","bn"), ("resnet34","gn")]:
+    for arch, norm in [
+        ("resnet18", "bn"),
+        ("resnet18", "gn"),
+        ("resnet34", "bn"),
+        ("resnet34", "gn"),
+    ]:
         m = MPIDResNet(arch=arch, norm=norm, in_channels=args.C, pretrained=False)
         export(m, x, outdir / f"{arch}_{norm}.onnx")
 
@@ -55,6 +63,7 @@ def main():
     MPIDBinary = mpid_mod.MPID
     m = MPIDBinary()
     export(m, x, outdir / "mpid_binary.onnx")
+
 
 if __name__ == "__main__":
     main()

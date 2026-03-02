@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -19,17 +20,17 @@ import matplotlib.colors as colors
 # Diagnostics: functions to help
 # -----------------------------
 
-import os, sys, hashlib
-import numpy as np
-import torch
-import torch.nn as nn
+import sys
+import hashlib
 
-def sha256_file(path, chunk=1024*1024):
+
+def sha256_file(path, chunk=1024 * 1024):
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for b in iter(lambda: f.read(chunk), b""):
             h.update(b)
     return h.hexdigest()
+
 
 def tensor_fingerprint(x: torch.Tensor):
     """Stable-ish fingerprint for 'is this the exact same tensor?' checks."""
@@ -46,6 +47,7 @@ def tensor_fingerprint(x: torch.Tensor):
         "sha1": hashlib.sha1(arr.tobytes()).hexdigest(),
     }
 
+
 def gn_summary(model: nn.Module):
     """For spotting GN16 vs GN32 mismatches."""
     groups = []
@@ -57,6 +59,7 @@ def gn_summary(model: nn.Module):
         "unique_num_groups": sorted(set(groups)),
     }
 
+
 def score_summary_from_logits(logits: torch.Tensor):
     """For BCEWithLogitsLoss-style binary outputs: show logits + sigmoid-per-logit."""
     v = logits.detach().cpu().flatten()
@@ -66,9 +69,11 @@ def score_summary_from_logits(logits: torch.Tensor):
     }
     return out
 
+
 # -----------------------------
 # Helpers: checkpoint + model detection (copied to match occlusion style)
 # -----------------------------
+
 
 def _extract_state(ckpt):
     # support: raw state_dict, {"state_dict": ...}, {"model_state_dict": ...}
@@ -82,7 +87,9 @@ def _extract_state(ckpt):
 
 def _looks_like_resnet_state(state: Dict[str, torch.Tensor]) -> bool:
     keys = list(state.keys())
-    return any(k.startswith("net.layer") or ".layer" in k for k in keys) or any(k.startswith("layer") for k in keys)
+    return any(k.startswith("net.layer") or ".layer" in k for k in keys) or any(
+        k.startswith("layer") for k in keys
+    )
 
 
 def _infer_resnet_depth(state: Dict[str, torch.Tensor]) -> int:
@@ -114,9 +121,11 @@ def _summarise_ckpt(state: Dict[str, torch.Tensor]) -> str:
 # Models (copied to match occlusion style)
 # -----------------------------
 
+
 class MPIDBinary(nn.Module):
     def __init__(self):
         from mpid_net import mpid_net_binary
+
         super().__init__()
         self.net = mpid_net_binary.MPID()
 
@@ -131,7 +140,7 @@ def _replace_bn_with_gn(module: nn.Module, num_groups: int = 32):
                 num_groups=num_groups,
                 num_channels=child.num_features,
                 eps=child.eps,
-                affine=True
+                affine=True,
             )
             setattr(module, name, gn)
         else:
@@ -142,24 +151,26 @@ class ResNetBinaryWrapper(nn.Module):
     def __init__(self, depth: int = 18, norm: str = "bn", dropout: float = 0.0):
         super().__init__()
         from torchvision.models import resnet18, resnet34
+
         net = resnet34(weights=None) if depth == 34 else resnet18(weights=None)
 
-        net.conv1 = nn.Conv2d(1, net.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False)
+        net.conv1 = nn.Conv2d(
+            1, net.conv1.out_channels, kernel_size=7, stride=2, padding=3, bias=False
+        )
         if norm == "gn":
             _replace_bn_with_gn(net)
 
         in_features = net.fc.in_features
-        net.fc = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(in_features, 2)
-        )
+        net.fc = nn.Sequential(nn.Dropout(p=dropout), nn.Linear(in_features, 2))
         self.net = net
 
     def forward(self, x):
         return self.net(x)
 
 
-def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device) -> Optional[str]:
+def _try_load(
+    model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device
+) -> Optional[str]:
     try:
         model.to(device)
         model.load_state_dict(state, strict=True)
@@ -169,7 +180,9 @@ def _try_load(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.de
         return str(e)
 
 
-def build_model(model_key: str, weight_file: str, device: torch.device) -> Tuple[nn.Module, str]:
+def build_model(
+    model_key: str, weight_file: str, device: torch.device
+) -> Tuple[nn.Module, str]:
     model_key = (model_key or "auto").lower()
     ckpt = torch.load(weight_file, map_location=device)
     state = _extract_state(ckpt)
@@ -214,6 +227,7 @@ def build_model(model_key: str, weight_file: str, device: torch.device) -> Tuple
 # Shared: data + plotting (match occlusion style)
 # -----------------------------
 
+
 def clamp_adc(img: torch.Tensor, adc_lo: float, adc_hi: float) -> torch.Tensor:
     img = img.clone()
     img[img > adc_hi] = adc_hi
@@ -241,7 +255,9 @@ def save_combined_map_png(
         original_img.T,
         origin="lower",
         cmap="jet",
-        norm=colors.PowerNorm(gamma=0.35, vmin=original_img.min(), vmax=original_img.max()),
+        norm=colors.PowerNorm(
+            gamma=0.35, vmin=original_img.min(), vmax=original_img.max()
+        ),
     )
     ax0.set_xlabel("Original Event", fontsize=35, labelpad=20)
     ax0.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
@@ -249,14 +265,26 @@ def save_combined_map_png(
     cbar0.set_label("ADC", fontsize=25)
     cbar0.ax.tick_params(labelsize=20)
 
-    im1 = ax1.imshow(signal_arr.T, origin="lower", cmap=cmap, vmin=np.min(signal_arr), vmax=np.max(signal_arr))
+    im1 = ax1.imshow(
+        signal_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(signal_arr),
+        vmax=np.max(signal_arr),
+    )
     ax1.set_xlabel("Signal Score Map", fontsize=35, labelpad=20)
     ax1.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar1 = fig.colorbar(im1, ax=ax1)
     cbar1.set_label("Score", fontsize=25)
     cbar1.ax.tick_params(labelsize=20)
 
-    im2 = ax2.imshow(background_arr.T, origin="lower", cmap=cmap, vmin=np.min(background_arr), vmax=np.max(background_arr))
+    im2 = ax2.imshow(
+        background_arr.T,
+        origin="lower",
+        cmap=cmap,
+        vmin=np.min(background_arr),
+        vmax=np.max(background_arr),
+    )
     ax2.set_xlabel("Background Score Map", fontsize=35, labelpad=20)
     ax2.tick_params(top=0, bottom=0, left=0, right=0, labelleft=0, labelbottom=0)
     cbar2 = fig.colorbar(im2, ax=ax2)
@@ -284,13 +312,20 @@ def save_combined_map_png(
     if info_lines:
         info_text = "\n".join(info_lines)
         fig.text(
-            0.5, 0.01, info_text,
-            ha="center", va="bottom",
+            0.5,
+            0.01,
+            info_text,
+            ha="center",
+            va="bottom",
             fontsize=18,
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
         )
 
-    fig.savefig(out_prefix.with_name(out_prefix.name + "_map.png"), bbox_inches="tight", pad_inches=0.1)
+    fig.savefig(
+        out_prefix.with_name(out_prefix.name + "_map.png"),
+        bbox_inches="tight",
+        pad_inches=0.1,
+    )
     plt.close(fig)
 
 
@@ -306,9 +341,15 @@ def outputs_exist(out_prefix: Path) -> bool:
 #     x = ds[entry][0].view(1, 1, 512, 512)
 #     return x
 
-def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.device) -> torch.Tensor:
+
+def load_image_from_root(
+    root_file: str, entry: int, plane: int, device: torch.device
+) -> torch.Tensor:
     from mpid_data import mpid_data_binary
-    ds = mpid_data_binary.MPID_Dataset(root_file, "image2d_image2d_binary_tree", device.type, plane=plane)
+
+    ds = mpid_data_binary.MPID_Dataset(
+        root_file, "image2d_image2d_binary_tree", device.type, plane=plane
+    )
     x, y, info, nevents = ds[entry]  # or ds[entry]
     print("\n--- DIAG event ---")
     print("ENTRY:", entry)
@@ -319,6 +360,7 @@ def load_image_from_root(root_file: str, entry: int, plane: int, device: torch.d
     x = x.view(1, 1, 512, 512)  # match what you actually feed the network
     print("x_raw fingerprint:", tensor_fingerprint(x))
     return x
+
 
 def _rootname_simplify(root_file: str) -> str:
     root_name = Path(root_file).name
@@ -342,10 +384,11 @@ def _norm01(a: np.ndarray) -> np.ndarray:
 # Lightweight diagnostics helpers
 # -----------------------------
 
+
 def _active_mask_from_x(x: torch.Tensor, threshold: float = 0.0) -> np.ndarray:
     """Active pixels mask from the clamped input tensor x [1,1,H,W]."""
     img = x.detach().cpu().squeeze().numpy()
-    return (img > float(threshold))
+    return img > float(threshold)
 
 
 def _topk_mask(a: np.ndarray, frac: float, use_abs: bool = False) -> np.ndarray:
@@ -364,7 +407,9 @@ def _topk_mask(a: np.ndarray, frac: float, use_abs: bool = False) -> np.ndarray:
     return mask.reshape(a.shape)
 
 
-def _overlap_topk_with_active(attr: np.ndarray, active: np.ndarray, frac: float, use_abs: bool = True) -> float:
+def _overlap_topk_with_active(
+    attr: np.ndarray, active: np.ndarray, frac: float, use_abs: bool = True
+) -> float:
     m = _topk_mask(attr, frac=frac, use_abs=use_abs)
     denom = float(m.sum())
     if denom == 0:
@@ -376,7 +421,7 @@ def _auc_trapezoid(y, x):
     y = np.asarray(y, dtype=np.float64)
     x = np.asarray(x, dtype=np.float64)
     if y.size < 2:
-        return float('nan')
+        return float("nan")
     return float(np.trapezoid(y, x))
 
 
@@ -408,8 +453,18 @@ def _deletion_insertion_curves(
     baseline = torch.zeros_like(x)
     out = {
         "fractions": fracs.tolist(),
-        "signal": {"deletion": [], "insertion": [], "random_deletion": [], "random_insertion": []},
-        "background": {"deletion": [], "insertion": [], "random_deletion": [], "random_insertion": []},
+        "signal": {
+            "deletion": [],
+            "insertion": [],
+            "random_deletion": [],
+            "random_insertion": [],
+        },
+        "background": {
+            "deletion": [],
+            "insertion": [],
+            "random_deletion": [],
+            "random_insertion": [],
+        },
     }
 
     x0 = x
@@ -445,7 +500,9 @@ def _deletion_insertion_curves(
             logits_r = model(x_del_r)
             probs_r = torch.sigmoid(logits_r)[0]
             out["signal"]["random_deletion"].append(float(probs_r[signal_idx].item()))
-            out["background"]["random_deletion"].append(float(probs_r[background_idx].item()))
+            out["background"]["random_deletion"].append(
+                float(probs_r[background_idx].item())
+            )
 
             # insertion
             x_ins = baseline + (x0 - baseline) * m_t.float()
@@ -458,18 +515,32 @@ def _deletion_insertion_curves(
             logits_r = model(x_ins_r)
             probs_r = torch.sigmoid(logits_r)[0]
             out["signal"]["random_insertion"].append(float(probs_r[signal_idx].item()))
-            out["background"]["random_insertion"].append(float(probs_r[background_idx].item()))
+            out["background"]["random_insertion"].append(
+                float(probs_r[background_idx].item())
+            )
 
     # AUCs (useful scalars)
     out["signal"]["auc_deletion"] = _auc_trapezoid(out["signal"]["deletion"], fracs)
     out["signal"]["auc_insertion"] = _auc_trapezoid(out["signal"]["insertion"], fracs)
-    out["signal"]["auc_random_deletion"] = _auc_trapezoid(out["signal"]["random_deletion"], fracs)
-    out["signal"]["auc_random_insertion"] = _auc_trapezoid(out["signal"]["random_insertion"], fracs)
+    out["signal"]["auc_random_deletion"] = _auc_trapezoid(
+        out["signal"]["random_deletion"], fracs
+    )
+    out["signal"]["auc_random_insertion"] = _auc_trapezoid(
+        out["signal"]["random_insertion"], fracs
+    )
 
-    out["background"]["auc_deletion"] = _auc_trapezoid(out["background"]["deletion"], fracs)
-    out["background"]["auc_insertion"] = _auc_trapezoid(out["background"]["insertion"], fracs)
-    out["background"]["auc_random_deletion"] = _auc_trapezoid(out["background"]["random_deletion"], fracs)
-    out["background"]["auc_random_insertion"] = _auc_trapezoid(out["background"]["random_insertion"], fracs)
+    out["background"]["auc_deletion"] = _auc_trapezoid(
+        out["background"]["deletion"], fracs
+    )
+    out["background"]["auc_insertion"] = _auc_trapezoid(
+        out["background"]["insertion"], fracs
+    )
+    out["background"]["auc_random_deletion"] = _auc_trapezoid(
+        out["background"]["random_deletion"], fracs
+    )
+    out["background"]["auc_random_insertion"] = _auc_trapezoid(
+        out["background"]["random_insertion"], fracs
+    )
 
     return out
 
@@ -478,7 +549,10 @@ def _deletion_insertion_curves(
 # Integrated Gradients (two-class maps)
 # -----------------------------
 
-def integrated_gradients(model: nn.Module, x: torch.Tensor, target_idx: int, steps: int = 64) -> torch.Tensor:
+
+def integrated_gradients(
+    model: nn.Module, x: torch.Tensor, target_idx: int, steps: int = 64
+) -> torch.Tensor:
     baseline = torch.zeros_like(x)
 
     grads = []
@@ -507,8 +581,18 @@ def ig_two_class_maps(
     steps: int,
     positive_only: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    ig_sig = integrated_gradients(model, x, target_idx=0, steps=steps)[0, 0].detach().cpu().numpy()
-    ig_bkg = integrated_gradients(model, x, target_idx=1, steps=steps)[0, 0].detach().cpu().numpy()
+    ig_sig = (
+        integrated_gradients(model, x, target_idx=0, steps=steps)[0, 0]
+        .detach()
+        .cpu()
+        .numpy()
+    )
+    ig_bkg = (
+        integrated_gradients(model, x, target_idx=1, steps=steps)[0, 0]
+        .detach()
+        .cpu()
+        .numpy()
+    )
 
     if positive_only:
         ig_sig = np.maximum(ig_sig, 0.0)
@@ -544,7 +628,11 @@ def run_one(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     root_name = _rootname_simplify(root_file)
-    out_prefix = out_dir / (f"integrad__ENTRY_{entry}__{root_name}" if root_name else f"integrad__ENTRY_{entry}")
+    out_prefix = out_dir / (
+        f"integrad__ENTRY_{entry}__{root_name}"
+        if root_name
+        else f"integrad__ENTRY_{entry}"
+    )
 
     if outputs_exist(out_prefix):
         print(f"[skip] exists: {out_prefix}")
@@ -564,7 +652,7 @@ def run_one(
     print("\n--- DIAG forward ---")
     print(score_summary_from_logits(logits0))
     print("--------------------\n")
-    
+
     # --- Integrated Gradients ---
     # Compute raw (signed) IG for diagnostics (completeness / curves).
     ig_sig_t = integrated_gradients(model, x, target_idx=0, steps=steps)
@@ -572,7 +660,7 @@ def run_one(
     ig_sig_raw = ig_sig_t[0, 0].detach().cpu().numpy().astype(np.float32)
     ig_bkg_raw = ig_bkg_t[0, 0].detach().cpu().numpy().astype(np.float32)
     # For plotting, keep previous default behaviour (positive-only) unless --signed is set.
-    positive_only = (not bool(signed))
+    positive_only = not bool(signed)
     sig_map = ig_sig_raw.copy()
     bkg_map = ig_bkg_raw.copy()
     if positive_only:
@@ -610,13 +698,33 @@ def run_one(
             "rel_error": float(rel_err),
         }
 
-    diag["overlap"]["signal_topk_on_active"] = _overlap_topk_with_active(ig_sig_raw, active, frac=topk_frac, use_abs=True)
-    diag["overlap"]["background_topk_on_active"] = _overlap_topk_with_active(ig_bkg_raw, active, frac=topk_frac, use_abs=True)
+    diag["overlap"]["signal_topk_on_active"] = _overlap_topk_with_active(
+        ig_sig_raw, active, frac=topk_frac, use_abs=True
+    )
+    diag["overlap"]["background_topk_on_active"] = _overlap_topk_with_active(
+        ig_bkg_raw, active, frac=topk_frac, use_abs=True
+    )
 
     if diag_curves:
         diag["curves"] = {
-            "signal": _deletion_insertion_curves(model, x, ig_sig_raw, signal_idx=0, background_idx=1, n_steps=curve_steps, seed=curve_seed),
-            "background": _deletion_insertion_curves(model, x, ig_bkg_raw, signal_idx=0, background_idx=1, n_steps=curve_steps, seed=curve_seed),
+            "signal": _deletion_insertion_curves(
+                model,
+                x,
+                ig_sig_raw,
+                signal_idx=0,
+                background_idx=1,
+                n_steps=curve_steps,
+                seed=curve_seed,
+            ),
+            "background": _deletion_insertion_curves(
+                model,
+                x,
+                ig_bkg_raw,
+                signal_idx=0,
+                background_idx=1,
+                n_steps=curve_steps,
+                seed=curve_seed,
+            ),
         }
 
     save_combined_map_png(
@@ -664,17 +772,41 @@ def run_one(
 # CLI (match occlusion style)
 # -----------------------------
 
+
 def build_argparser():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="auto", help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn")
+    p.add_argument(
+        "--model",
+        default="auto",
+        help="auto | mpid | resnet18_bn | resnet18_gn | resnet34_bn | resnet34_gn",
+    )
     p.add_argument("--weight-file", required=True)
 
-    p.add_argument("--input-file", default=None, help="Path to ROOT file (inside container: /data/...)")
-    p.add_argument("--entry", type=int, default=None, help="Single entry index in ROOT tree")
-    p.add_argument("--entries", type=int, default=1, help="How many entries to run starting at --entry")
+    p.add_argument(
+        "--input-file",
+        default=None,
+        help="Path to ROOT file (inside container: /data/...)",
+    )
+    p.add_argument(
+        "--entry", type=int, default=None, help="Single entry index in ROOT tree"
+    )
+    p.add_argument(
+        "--entries",
+        type=int,
+        default=1,
+        help="How many entries to run starting at --entry",
+    )
 
-    p.add_argument("--from-csv", default=None, help="CSV with columns: root_file, entry_number, n_pixels, out_dir, tag, weight_file(optional), model(optional)")
-    p.add_argument("--larcv-base", default="/data", help="Base bind inside container for ROOTs (default /data)")
+    p.add_argument(
+        "--from-csv",
+        default=None,
+        help="CSV with columns: root_file, entry_number, n_pixels, out_dir, tag, weight_file(optional), model(optional)",
+    )
+    p.add_argument(
+        "--larcv-base",
+        default="/data",
+        help="Base bind inside container for ROOTs (default /data)",
+    )
 
     p.add_argument("--output-dir", required=True)
     p.add_argument("--tag", default="")
@@ -686,19 +818,46 @@ def build_argparser():
     # In occlusion, --normalize means normalize the produced maps (min-max).
     p.add_argument("--normalize", action="store_true")
 
-    p.add_argument("--signed", action="store_true", help="If set, do NOT clamp IG to positive only (keeps signed attributions).")
-    p.add_argument("--active-threshold", type=float, default=0.0, help="Threshold on clamped ADC to define active pixels for overlap diagnostics.")
-    p.add_argument("--topk-frac", type=float, default=0.01, help="Top fraction of pixels for overlap / curves (default 1%).")
-    p.add_argument("--diag-curves", action="store_true", help="Run deletion/insertion curves (extra forward passes).")
-    p.add_argument("--curve-steps", type=int, default=11, help="Number of points in deletion/insertion curves.")
-    p.add_argument("--curve-seed", type=int, default=123, help="Random seed for random baseline curves.")
+    p.add_argument(
+        "--signed",
+        action="store_true",
+        help="If set, do NOT clamp IG to positive only (keeps signed attributions).",
+    )
+    p.add_argument(
+        "--active-threshold",
+        type=float,
+        default=0.0,
+        help="Threshold on clamped ADC to define active pixels for overlap diagnostics.",
+    )
+    p.add_argument(
+        "--topk-frac",
+        type=float,
+        default=0.01,
+        help="Top fraction of pixels for overlap / curves (default 1%).",
+    )
+    p.add_argument(
+        "--diag-curves",
+        action="store_true",
+        help="Run deletion/insertion curves (extra forward passes).",
+    )
+    p.add_argument(
+        "--curve-steps",
+        type=int,
+        default=11,
+        help="Number of points in deletion/insertion curves.",
+    )
+    p.add_argument(
+        "--curve-seed",
+        type=int,
+        default=123,
+        help="Random seed for random baseline curves.",
+    )
 
     p.add_argument("--plane", type=int, default=0)
     p.add_argument("--save-npy", action="store_true")
     p.add_argument("--gpuid", default="0")
     p.add_argument("--n-pixels", type=int, default=None)
     return p
-
 
 
 def main():
@@ -711,13 +870,21 @@ def main():
     print("cuda_available:", torch.cuda.is_available())
     print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
     print("============================================\n")
-    
-    print("DIAG args:",
-          {"input_file": args.input_file, "entry": args.entry, "plane": args.plane,
-           "weight_file": args.weight_file, "model_key": getattr(args, "model_key", None),
-           "adc_lo": getattr(args, "adc_lo", None), "adc_hi": getattr(args, "adc_hi", None),
-           "normalize": getattr(args, "normalize", None)})
-    
+
+    print(
+        "DIAG args:",
+        {
+            "input_file": args.input_file,
+            "entry": args.entry,
+            "plane": args.plane,
+            "weight_file": args.weight_file,
+            "model_key": getattr(args, "model_key", None),
+            "adc_lo": getattr(args, "adc_lo", None),
+            "adc_hi": getattr(args, "adc_hi", None),
+            "normalize": getattr(args, "normalize", None),
+        },
+    )
+
     print("\n--- DIAG weights ---")
     print("weight_file:", args.weight_file)
     print("exists:", os.path.exists(args.weight_file))
@@ -738,9 +905,10 @@ def main():
     print("model_type:", type(model))
     print("gn_summary:", gn_summary(model))
     print("------------------\n")
-    
+
     if args.from_csv:
         import pandas as pd
+
         df = pd.read_csv(args.from_csv)
         required = {"root_file", "entry_number", "n_pixels", "out_dir", "tag"}
         missing = required - set(df.columns)
@@ -757,8 +925,16 @@ def main():
             out_dir = str(row["out_dir"])
             tag = str(row["tag"])
 
-            wfile = str(row["weight_file"]) if ("weight_file" in df.columns and isinstance(row["weight_file"], str)) else args.weight_file
-            mkey = str(row["model"]) if ("model" in df.columns and isinstance(row["model"], str)) else args.model
+            wfile = (
+                str(row["weight_file"])
+                if ("weight_file" in df.columns and isinstance(row["weight_file"], str))
+                else args.weight_file
+            )
+            mkey = (
+                str(row["model"])
+                if ("model" in df.columns and isinstance(row["model"], str))
+                else args.model
+            )
 
             if (wfile != args.weight_file) or (mkey != args.model):
                 model_i, resolved_i = build_model(mkey, wfile, device)

@@ -1,16 +1,15 @@
 class config_loader(object):
-    def __init__(self,file_):
+    def __init__(self, file_):
         data = None
-        with open(file_,'r') as f:
+        with open(file_, "r") as f:
             data = f.read()
             data = data.split("\n")
             for line in data:
-                if(line == ""):
+                if line == "":
                     continue
-                elif(line.startswith("#")):
+                elif line.startswith("#"):
                     continue
                 else:
                     SS = "self." + line
                     print(SS)
                     exec(SS)
-            

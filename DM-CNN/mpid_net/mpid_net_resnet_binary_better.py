@@ -24,16 +24,17 @@ class MPID(nn.Module):
     MPID-style wrapper around torchvision ResNet for your binary setup.
     Keeps constructor pattern similar to mpid_net_binary.py.
     """
+
     def __init__(
         self,
         dropout=0.5,
         num_classes=2,
-        eps=1e-05,            # kept for interface compatibility
+        eps=1e-05,  # kept for interface compatibility
         running_stats=False,  # kept for interface compatibility
         arch="resnet18",
         in_channels=1,
         pretrained=False,
-        norm="bn",            # "bn" (default) or "gn"
+        norm="bn",  # "bn" (default) or "gn"
         gn_groups=32,
     ):
         super(MPID, self).__init__()
@@ -53,9 +54,13 @@ class MPID(nn.Module):
 
         # Build backbone with the chosen norm layer
         if arch == "resnet18":
-            backbone = self._build_resnet18(norm_layer=norm_layer, pretrained=pretrained)
+            backbone = self._build_resnet18(
+                norm_layer=norm_layer, pretrained=pretrained
+            )
         elif arch == "resnet34":
-            backbone = self._build_resnet34(norm_layer=norm_layer, pretrained=pretrained)
+            backbone = self._build_resnet34(
+                norm_layer=norm_layer, pretrained=pretrained
+            )
         else:
             raise ValueError("arch must be 'resnet18' or 'resnet34'")
 
@@ -87,7 +92,7 @@ class MPID(nn.Module):
                     backbone.conv1.weight[:, :3, :, :] = old_conv.weight
                     mean_rgb = old_conv.weight.mean(dim=1, keepdim=True)
                     for c in range(3, in_channels):
-                        backbone.conv1.weight[:, c:c+1, :, :] = mean_rgb
+                        backbone.conv1.weight[:, c : c + 1, :, :] = mean_rgb
 
         # --- Replace classifier head: output num_classes logits ---
         in_feats = backbone.fc.in_features
@@ -120,8 +125,7 @@ class MPID(nn.Module):
             return models.resnet34(pretrained=pretrained, norm_layer=norm_layer)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Minimal sanity check: forward pass shape
     mpid = MPID(
         arch="resnet18",
@@ -129,7 +133,7 @@ if __name__ == '__main__':
         num_classes=2,
         dropout=0.5,
         pretrained=False,
-        norm="bn",   # change to "gn" to test GroupNorm
+        norm="bn",  # change to "gn" to test GroupNorm
         gn_groups=32,
     )
     print(mpid)
