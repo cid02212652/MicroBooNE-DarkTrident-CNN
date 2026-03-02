@@ -1,4 +1,4 @@
-executable = visualise_network.sh
+executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/visualise_network.sh
 
 # logs
 output = logs/net_viz.$(Cluster).out

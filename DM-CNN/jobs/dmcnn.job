@@ -1,4 +1,4 @@
-executable = training_payload.sh
+executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/training_payload.sh
 output = logs/dmcnn.$(CLUSTER).out
 error = logs/dmcnn.$(CLUSTER).err
 log = logs/dmcnn.$(CLUSTER).log

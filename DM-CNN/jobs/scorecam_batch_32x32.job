@@ -1,8 +1,8 @@
-executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/scorecam_wrapper_16x16.sh
+executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/scorecam_wrapper_32x32.sh
 
-output = logs/scorecam_16x16.$(Cluster).$(Process).out
-error  = logs/scorecam_16x16.$(Cluster).$(Process).err
-log    = logs/scorecam_16x16.$(Cluster).log
+output = logs/scorecam_32x32.$(Cluster).$(Process).out
+error  = logs/scorecam_32x32.$(Cluster).$(Process).err
+log    = logs/scorecam_32x32.$(Cluster).log
 
 arguments = $(root_file) $(weight_file) $(out_dir) $(entry_number) $(n_pixels) $(tag)
 

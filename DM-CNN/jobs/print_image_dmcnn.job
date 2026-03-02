@@ -1,4 +1,4 @@
-executable = print_image_payload_run1.sh
+executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/print_image_payload_run1.sh
 output = logs/print_dmcnn.$(CLUSTER).out
 error = logs/print_dmcnn.$(CLUSTER).err
 log = logs/print_dmcnn.$(CLUSTER).log

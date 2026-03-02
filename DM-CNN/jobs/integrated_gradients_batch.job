@@ -1,4 +1,4 @@
-executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/integrated_gradients_wrapper.sh
+executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/integrated_gradients_wrapper.sh
 
 output = logs/inte_grad.$(Cluster).$(Process).out
 error  = logs/inte_grad.$(Cluster).$(Process).err
