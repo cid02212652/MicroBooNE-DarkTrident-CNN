@@ -67,7 +67,7 @@ class SelectionConfig:
 
     infer_base: Path
     out_base: Path
-    larcv_base: Path = Path('/vols/sbn/uboone/darkTridents/data/larcv_files')
+    larcv_base: Path = Path("/vols/sbn/uboone/darkTridents/data/larcv_files")
     signal_keep_substr: Optional[str] = "dt_ratio_0.6_ma_0.05_pi0"
     bad_score: float = DEFAULT_BAD_SCORE
     bad_pixels: int = DEFAULT_BAD_PIXELS
@@ -138,7 +138,9 @@ def list_inference_folders(
     return sorted(out)
 
 
-def read_scores_csv(path: Path, needed_cols: Sequence[str] = NEEDED_COLS) -> pd.DataFrame:
+def read_scores_csv(
+    path: Path, needed_cols: Sequence[str] = NEEDED_COLS
+) -> pd.DataFrame:
     """Read one *_scores.csv file and standardize types."""
     df = pd.read_csv(path)
     missing = [c for c in needed_cols if c not in df.columns]
@@ -192,7 +194,9 @@ def load_all_scores(cfg: SelectionConfig) -> pd.DataFrame:
             dfs.append(df)
 
     if not dfs:
-        return pd.DataFrame(columns=NEEDED_COLS + ["__file", "__folder", "__run", "__kind", "__model"])
+        return pd.DataFrame(
+            columns=NEEDED_COLS + ["__file", "__folder", "__run", "__kind", "__model"]
+        )
 
     return pd.concat(dfs, ignore_index=True)
 
@@ -218,7 +222,10 @@ def clean_scores(
     if signal_keep_substr:
         clean = clean[
             (clean["__kind"] == "samples")
-            | ((clean["__kind"] == "signal") & clean["__file"].str.contains(signal_keep_substr, na=False))
+            | (
+                (clean["__kind"] == "signal")
+                & clean["__file"].str.contains(signal_keep_substr, na=False)
+            )
         ].copy()
 
     return clean
@@ -270,22 +277,37 @@ def select_occlusion_set(
     # A) Tail events (different for samples vs signal)
     if kind == "samples":
         q = df["signal_score"].quantile(samples_high_q)
-        A_df = df[df["signal_score"] >= q].sort_values("signal_score", ascending=False).head(A)
+        A_df = (
+            df[df["signal_score"] >= q]
+            .sort_values("signal_score", ascending=False)
+            .head(A)
+        )
     else:
         q = df["signal_score"].quantile(signal_low_q)
-        A_df = df[df["signal_score"] <= q].sort_values("signal_score", ascending=True).head(A)
+        A_df = (
+            df[df["signal_score"] <= q]
+            .sort_values("signal_score", ascending=True)
+            .head(A)
+        )
 
     # B) Borderline events
     df2 = df.assign(__dist=(df["signal_score"] - borderline_target).abs())
     k = max(1, int(border_frac * len(df2)))
-    B_df = df2.sort_values("__dist", ascending=True).head(max(B, k)).drop(columns="__dist").head(B)
+    B_df = (
+        df2.sort_values("__dist", ascending=True)
+        .head(max(B, k))
+        .drop(columns="__dist")
+        .head(B)
+    )
 
     # C) Low-pixel oddities within A_df
     if not A_df.empty:
         pix_cut = A_df["n_pixels"].quantile(weird_lowpix_q)
         C_df = (
             A_df[A_df["n_pixels"] <= pix_cut]
-            .sort_values(["n_pixels", "signal_score"], ascending=[True, (kind == "signal")])
+            .sort_values(
+                ["n_pixels", "signal_score"], ascending=[True, (kind == "signal")]
+            )
             .head(C)
         )
     else:
@@ -316,7 +338,9 @@ def select_occlusion_set(
         if border_mask.loc[row.name] if row.name in border_mask.index else False:
             tags.append("B_border")
 
-        if (not A_df.empty) and (row["n_pixels"] <= A_df["n_pixels"].quantile(weird_lowpix_q)):
+        if (not A_df.empty) and (
+            row["n_pixels"] <= A_df["n_pixels"].quantile(weird_lowpix_q)
+        ):
             tags.append("C_weird_lowpix")
 
         if row["n_pixels"] >= pix_hi:
@@ -335,10 +359,14 @@ def select_occlusion_set(
             if row["signal_score"] <= df["signal_score"].quantile(signal_low_q):
                 tags.append("A_low_tail")
 
-        if abs(row["signal_score"] - borderline_target) <= (df["signal_score"] - borderline_target).abs().quantile(border_frac):
+        if abs(row["signal_score"] - borderline_target) <= (
+            df["signal_score"] - borderline_target
+        ).abs().quantile(border_frac):
             tags.append("B_border")
 
-        if (not A_df.empty) and (row["n_pixels"] <= A_df["n_pixels"].quantile(weird_lowpix_q)):
+        if (not A_df.empty) and (
+            row["n_pixels"] <= A_df["n_pixels"].quantile(weird_lowpix_q)
+        ):
             tags.append("C_weird_lowpix")
 
         if row["n_pixels"] >= pix_hi:
@@ -426,10 +454,12 @@ def add_disagreement_picks(
     if df_other.empty or df_ref.empty:
         return picks_ref.copy(), pd.DataFrame()
 
-    df_ref = df_ref[KEYS + ["signal_score", "n_pixels", "__file", "__folder", "entry_number"]].rename(
-        columns={"signal_score": "score_ref"}
+    df_ref = df_ref[
+        KEYS + ["signal_score", "n_pixels", "__file", "__folder", "entry_number"]
+    ].rename(columns={"signal_score": "score_ref"})
+    df_other = df_other[KEYS + ["signal_score"]].rename(
+        columns={"signal_score": "score_other"}
     )
-    df_other = df_other[KEYS + ["signal_score"]].rename(columns={"signal_score": "score_other"})
 
     m = df_ref.merge(df_other, on=KEYS, how="inner")
     if m.empty:
@@ -439,14 +469,16 @@ def add_disagreement_picks(
     m["abs_delta"] = m["delta"].abs()
     m["flip_strong"] = (
         (m["score_ref"] >= thr + margin) & (m["score_other"] <= thr - margin)
-    ) | (
-        (m["score_other"] >= thr + margin) & (m["score_ref"] <= thr - margin)
-    )
+    ) | ((m["score_other"] >= thr + margin) & (m["score_ref"] <= thr - margin))
 
     top_abs = m.sort_values("abs_delta", ascending=False).head(E_abs)
-    top_flip = m[m["flip_strong"]].sort_values("abs_delta", ascending=False).head(E_flip)
+    top_flip = (
+        m[m["flip_strong"]].sort_values("abs_delta", ascending=False).head(E_flip)
+    )
 
-    extra = pd.concat([top_abs, top_flip], ignore_index=True).drop_duplicates(subset=KEYS, keep="first")
+    extra = pd.concat([top_abs, top_flip], ignore_index=True).drop_duplicates(
+        subset=KEYS, keep="first"
+    )
 
     extra_rows = subset.merge(extra[KEYS], on=KEYS, how="inner")
 
@@ -465,7 +497,9 @@ def add_disagreement_picks(
     extra_rows = extra_rows.copy()
     extra_rows["pick_reason"] = extra_rows.apply(mk_reason, axis=1)
 
-    out = pd.concat([picks_ref, extra_rows], ignore_index=True).drop_duplicates(subset=KEYS, keep="first")
+    out = pd.concat([picks_ref, extra_rows], ignore_index=True).drop_duplicates(
+        subset=KEYS, keep="first"
+    )
     return out, m
 
 
@@ -530,9 +564,9 @@ def build_master(
     merge_on = ["entry_number", "__file"]
     for folder in folders:
         folder_clean = folder.replace(f"{run}_{kind}_", "")
-        df_folder = subset[subset["__folder"] == folder][merge_on + ["signal_score"]].rename(
-            columns={"signal_score": f"{folder_clean}__signal_score"}
-        )
+        df_folder = subset[subset["__folder"] == folder][
+            merge_on + ["signal_score"]
+        ].rename(columns={"signal_score": f"{folder_clean}__signal_score"})
         master = master.merge(df_folder, on=merge_on, how="left")
 
     master["n_pixels"] = picks["n_pixels"].astype(int).values
@@ -561,9 +595,9 @@ def write_to_occlude_files(
     for folder in folders:
         df_f = subset[subset["__folder"] == folder].copy()
 
-        lookup = df_f[KEYS + ["entry_number", "signal_score", "n_pixels", "__file"]].rename(
-            columns={"__file": "scores_file"}
-        )
+        lookup = df_f[
+            KEYS + ["entry_number", "signal_score", "n_pixels", "__file"]
+        ].rename(columns={"__file": "scores_file"})
         lookup = lookup.drop_duplicates(subset=KEYS, keep="first")
 
         merged = master.merge(lookup, on=KEYS, how="left", suffixes=("_ref", "_folder"))
@@ -578,7 +612,9 @@ def write_to_occlude_files(
         # Root file is deterministic from scores_file; keep the full path here so downstream steps
         # don't need to re-derive it.
         root_dir = larcv_base / f"{run}_{kind}"
-        to_occ["root_file"] = to_occ["scores_file"].apply(lambda s: str(root_dir / scores_to_root(s)))
+        to_occ["root_file"] = to_occ["scores_file"].apply(
+            lambda s: str(root_dir / scores_to_root(s))
+        )
 
         folder_clean = folder.replace(f"{run}_{kind}_", "")
 
@@ -586,7 +622,13 @@ def write_to_occlude_files(
             KEYS
             + ["pick_reason", "entry_number"]
             + [c for c in to_occ.columns if c.endswith("__signal_score")]
-            + ["n_pixels_folder", "scores_file", "root_file", "reference_folder", "dataset"]
+            + [
+                "n_pixels_folder",
+                "scores_file",
+                "root_file",
+                "reference_folder",
+                "dataset",
+            ]
         )
         to_occ = to_occ[keep_cols].rename(columns={"n_pixels_folder": "n_pixels"})
 
@@ -726,7 +768,9 @@ def build_occlusion_tasks(task_cfg: TaskConfig) -> pd.DataFrame:
                     "root_file": str(getattr(r, "root_file")),
                     "entry_number": int(getattr(r, "entry_number")),
                     "n_pixels": int(getattr(r, "n_pixels")),
-                    "out_dir": str(outdir_for(task_cfg.project_dir, tag, dataset, folder)),
+                    "out_dir": str(
+                        outdir_for(task_cfg.project_dir, tag, dataset, folder)
+                    ),
                     "tag": tag,
                 }
             )
@@ -738,7 +782,9 @@ def build_occlusion_tasks(task_cfg: TaskConfig) -> pd.DataFrame:
     cols = ["root_file", "weight_file", "out_dir", "entry_number", "n_pixels", "tag"]
     with open(task_cfg.tasks_list, "w") as f:
         for r in tasks[cols].itertuples(index=False):
-            f.write(f"{r.root_file} {r.weight_file} {r.out_dir} {int(r.entry_number)} {int(r.n_pixels)} {r.tag}\n")
+            f.write(
+                f"{r.root_file} {r.weight_file} {r.out_dir} {int(r.entry_number)} {int(r.n_pixels)} {r.tag}\n"
+            )
 
     return tasks
 
@@ -821,7 +867,6 @@ def write_method_task_lists(
     return written
 
 
-
 # -------------------------
 # Quick score querying helpers
 # -------------------------
@@ -859,8 +904,15 @@ def select_top(
     if min_score is not None:
         x = x[x["signal_score"] >= float(min_score)]
 
-    ascending = (by != "signal_score")
-    cols = ["run_number", "subrun_number", "event_number", "entry_number", "signal_score", "n_pixels"]
+    ascending = by != "signal_score"
+    cols = [
+        "run_number",
+        "subrun_number",
+        "event_number",
+        "entry_number",
+        "signal_score",
+        "n_pixels",
+    ]
     if "source_file" in x.columns:
         cols = ["source_file"] + cols
     return x.sort_values(by, ascending=ascending).head(int(n))[cols]
@@ -886,7 +938,14 @@ def nearest(
 
     d = (x[col] - float(target)).abs()
     out = x.loc[d.nsmallest(int(n)).index]
-    cols = ["run_number", "subrun_number", "event_number", "entry_number", "signal_score", "n_pixels"]
+    cols = [
+        "run_number",
+        "subrun_number",
+        "event_number",
+        "entry_number",
+        "signal_score",
+        "n_pixels",
+    ]
     if "source_file" in out.columns:
         cols = ["source_file"] + cols
     return out.sort_values(col)[cols]
@@ -910,7 +969,14 @@ def filter_range(
         x = x[x["n_pixels"] >= int(pixels_min)]
     if pixels_max is not None:
         x = x[x["n_pixels"] <= int(pixels_max)]
-    cols = ["run_number", "subrun_number", "event_number", "entry_number", "signal_score", "n_pixels"]
+    cols = [
+        "run_number",
+        "subrun_number",
+        "event_number",
+        "entry_number",
+        "signal_score",
+        "n_pixels",
+    ]
     if "source_file" in x.columns:
         cols = ["source_file"] + cols
     return x[cols]
@@ -927,7 +993,9 @@ def occlusion_cmd(entry_number: int) -> str:
 
 
 def _cli_select() -> None:
-    ap = argparse.ArgumentParser(description="Generate master/to_occlude selection tables.")
+    ap = argparse.ArgumentParser(
+        description="Generate master/to_occlude selection tables."
+    )
     ap.add_argument("--infer-base", type=Path, required=True)
     ap.add_argument("--out-base", type=Path, required=True)
     ap.add_argument("--signal-keep", type=str, default="dt_ratio_0.6_ma_0.05_pi0")
@@ -950,7 +1018,9 @@ def _cli_select() -> None:
 
 
 def _cli_tasks() -> None:
-    ap = argparse.ArgumentParser(description="Build occlusion task lists from to_occlude tables.")
+    ap = argparse.ArgumentParser(
+        description="Build occlusion task lists from to_occlude tables."
+    )
     ap.add_argument("--project-dir", type=Path, required=True)
     ap.add_argument("--selection-dir", type=Path, required=True)
     ap.add_argument("--larcv-base", type=Path, required=True)

@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 
 # For rotations
+from scipy.ndimage import rotate as nd_rotate
 
 # MPID scripts
 from mpid_data import mpid_data_binary
@@ -60,8 +61,9 @@ def InferenceCNN():
     # Weight file
     weight_file = cfg.weight_file
 
-    # Rotate
-    rotate = cfg.rotation
+    # Rotation options
+    do_rotate = bool(cfg.rotation)
+    rotation_angle = getattr(cfg, "rotation_angle", 90.0)
 
     # Input csv
     df = pd.read_csv(input_csv)
@@ -101,10 +103,12 @@ def InferenceCNN():
         input_image[0][0][input_image[0][0] < 10] = 0
 
         # Image rotation
-        if rotate:
-            input_image[0][0] = torch.tensor(
-                rotate(input_image[0][0], angle=rotation_angle)
+        if do_rotate:
+            img_np = input_image[0][0].cpu().numpy()
+            img_rot = nd_rotate(
+                img_np, angle=rotation_angle, reshape=False, mode="nearest"
             )
+            input_image[0][0] = torch.tensor(img_rot, dtype=input_image.dtype)
 
         score = nn.Sigmoid()(mpid(input_image.cuda())).cpu().detach().numpy()[0]
 

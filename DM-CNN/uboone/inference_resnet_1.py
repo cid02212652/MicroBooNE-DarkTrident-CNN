@@ -103,7 +103,7 @@ def InferenceCNN():
         cfg, "labels", 2
     )  # keep compatible with cfg naming if present
 
-    # If labels isn't in cfg, force the binary setup you trained with
+    # If labels isn't in cfg, force the binary setup
     if num_classes is None:
         num_classes = 2
 
@@ -122,11 +122,10 @@ def InferenceCNN():
     # Load checkpoint
     state = torch.load(weight_file, map_location=train_device)
 
-    # Some people save full dicts; handle both cases gracefully
     if isinstance(state, dict) and ("model_state_dict" in state):
         state = state["model_state_dict"]
 
-    # If someone accidentally points to a non-resnet checkpoint, error loudly with a helpful message
+    # If pointing to a non-resnet checkpoint, error loudly with a helpful message
     if not _infer_is_resnet_checkpoint(state):
         raise RuntimeError(
             "This looks like a non-ResNet checkpoint (missing 'net.layer*/net.conv1/net.fc' keys). "

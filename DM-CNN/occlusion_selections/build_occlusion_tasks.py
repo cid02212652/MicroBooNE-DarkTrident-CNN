@@ -4,7 +4,11 @@ Wrapper script for the task stage (occlusion_tasks.csv + occlusion_tasks.list).
 """
 
 from pathlib import Path
-from occlusion_selection_tools import TaskConfig, build_occlusion_tasks, write_method_task_lists
+from occlusion_selection_tools import (
+    TaskConfig,
+    build_occlusion_tasks,
+    write_method_task_lists,
+)
 
 
 PROJECT = Path("/home/hep/an1522/dark_tridents_wspace")
