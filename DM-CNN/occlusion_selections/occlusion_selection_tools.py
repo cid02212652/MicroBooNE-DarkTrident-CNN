@@ -19,8 +19,7 @@ The pipeline is intentionally split into two stages:
        - occlusion_tasks.csv
        - occlusion_tasks.list (space-separated, convenient for GNU parallel)
 
-The functions below are written to avoid reliance on global variables: pass in the
-dataframe you want to operate on.
+The functions below are written to avoid reliance on global variables.
 """
 
 from __future__ import annotations
@@ -102,7 +101,6 @@ def parse_inference_folder_name(folder_name: str) -> Optional[Tuple[str, str, st
     ----------------
     - run1_samples
     - run1_samples_resnet34_gn
-    - run3_signal_resnet18_bn
 
     Returns
     -------
@@ -113,6 +111,8 @@ def parse_inference_folder_name(folder_name: str) -> Optional[Tuple[str, str, st
     if not m:
         return None
     run, kind, suffix = m.group(1), m.group(2), m.group(3)
+    if suffix in ("resnet34_bn", "resnet18_bn", "resnet18_gn"):
+        return None
     model_tag = suffix if suffix else "mpid"
     return run, kind, model_tag
 
@@ -246,10 +246,14 @@ def select_occlusion_set(
     df_folder: pd.DataFrame,
     *,
     kind: str,
-    A: int = 10,
-    B: int = 10,
-    C: int = 10,
-    D: int = 5,
+    A: int = 1,
+    B: int = 1,
+    C: int = 1,
+    D: int = 2,
+    # A: int = 10,
+    # B: int = 10,
+    # C: int = 10,
+    # D: int = 5,
     samples_high_q: float = 0.995,
     signal_low_q: float = 0.005,
     borderline_target: float = 0.5,
@@ -389,7 +393,8 @@ def select_occlusion_set_stratified(
     *,
     kind: str,
     files: Optional[Sequence[str]] = None,
-    per_file_counts: Tuple[int, int, int, int] = (4, 4, 4, 2),
+    per_file_counts: Tuple[int, int, int, int] = (1, 1, 1, 1),
+    # per_file_counts: Tuple[int, int, int, int] = (4, 4, 4, 2),
     **kwargs,
 ) -> pd.DataFrame:
     """Select events per score-file to enforce representation (useful for samples)."""
@@ -424,8 +429,10 @@ def add_disagreement_picks(
     run: str,
     kind: str,
     other_folder: str,
-    E_abs: int = 10,
-    E_flip: int = 10,
+    E_abs: int = 2,
+    E_flip: int = 2,
+    # E_abs: int = 10,
+    # E_flip: int = 10,
     thr: float = 0.5,
     margin: float = 0.20,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -537,7 +544,8 @@ def build_master(
             df_ref,
             kind="samples",
             files=samples_files,
-            per_file_counts=(4, 4, 4, 2),
+            per_file_counts=(1, 1, 1, 1),
+            # per_file_counts=(4, 4, 4, 2),
         )
     else:
         picks = select_occlusion_set(df_ref, kind="signal")
@@ -552,8 +560,10 @@ def build_master(
             run=run,
             kind=kind,
             other_folder=disagreement_against,
-            E_abs=10,
-            E_flip=10,
+            E_abs=1,
+            E_flip=1,
+            # E_abs=10,
+            # E_flip=10,
             margin=0.20,
         )
 

@@ -33,9 +33,9 @@ apptainer exec --nv \
       --output-dir  \"$OUT_DIR\" \
       --tag         \"$TAG\" \
       --method gradcam \
-      --layer-preset mid32 \
+      --layer-preset mid128 \
       --diag-curves \
-      --cam-upsample nearest
+      --cam-upsample bilinear
   "
 
 

@@ -25,7 +25,7 @@ apptainer exec --nv \
   "$IMG" /bin/bash -lc "
     cd /workspace/DM-CNN
     source setup_larcv2_dm.sh
-    python3 uboone/gradcam_CNN_cli_v2.py \
+    python3 uboone/gradcam_CNN_cli_v4.py \
       --weight-file \"$WEIGHT_FILE\" \
       --input-file  \"/data/$ROOT_BASENAME\" \
       --entry       \"$ENTRY_NUMBER\" \
@@ -35,7 +35,7 @@ apptainer exec --nv \
       --method gradcam \
       --layer-preset final \
       --diag-curves \
-      --normalize
+      --cam-upsample nearest
   "
 
 

@@ -25,7 +25,7 @@ apptainer exec --nv \
   "$IMG" /bin/bash -lc "
     cd /workspace/DM-CNN
     source setup_larcv2_dm.sh
-    python3 uboone/scorecam_CNN_cli_v2.py \
+    python3 uboone/scorecam_CNN_cli_v3.py \
       --weight-file \"$WEIGHT_FILE\" \
       --input-file  \"/data/$ROOT_BASENAME\" \
       --entry       \"$ENTRY_NUMBER\" \

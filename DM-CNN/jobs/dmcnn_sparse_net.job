@@ -1,0 +1,9 @@
+executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/training_payload_sparse_net.sh
+output = logs/dmcnn_sparse_net.$(CLUSTER).out
+error = logs/dmcnn_sparse_net.$(CLUSTER).err
+log = logs/dmcnn_sparse_net.$(CLUSTER).log
+
+request_cpus = 4
+
++MaxRuntime = 84000
+queue
