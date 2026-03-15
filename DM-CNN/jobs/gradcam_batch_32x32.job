@@ -1,8 +1,8 @@
 executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/gradcam_wrapper_32x32.sh
 
-output = logs/gradcam_32x32.$(Cluster).$(Process).out
-error  = logs/gradcam_32x32.$(Cluster).$(Process).err
-log    = logs/gradcam_32x32.$(Cluster).log
+output = logs/gradcam/gradcam_32x32.$(Cluster).$(Process).out
+error  = logs/gradcam/gradcam_32x32.$(Cluster).$(Process).err
+log    = logs/gradcam/gradcam_32x32.$(Cluster).log
 
 arguments = $(root_file) $(weight_file) $(out_dir) $(entry_number) $(n_pixels) $(tag)
 

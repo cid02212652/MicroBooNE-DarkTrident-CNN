@@ -26,6 +26,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
+from scipy import ndimage, stats
+
 
 # -----------------------------
 # Diagnostics: general helpers
@@ -271,6 +273,7 @@ def save_combined_map_png(
     model_key: str | None = None,
     method: str | None = None,
     layer_name: str | None = None,
+    occlusion_size: str | None = None,
     extra_info: str | None = None,
     cmap: str = "gnuplot_r",
     signed_cmap: str = "seismic",
@@ -368,7 +371,13 @@ def save_combined_map_png(
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
         )
 
-    suffix = f"_map_{layer_name}.png" if layer_name else "_map.png"
+    # suffix = f"_map_{layer_name}.png" if layer_name else "_map.png"
+    if layer_name:
+        suffix = f"_map_{layer_name}.png"
+    elif occlusion_size:
+        suffix = f"_map_{occlusion_size}.png"
+    else:
+        suffix = "_map.png"
     fig.savefig(out_prefix.with_name(out_prefix.name + suffix), bbox_inches="tight", pad_inches=0.1)
     plt.close(fig)
 
@@ -413,7 +422,7 @@ def preset_layer_name(model: nn.Module, preset: str = "mid32") -> str:
       - mid128: ResNet layer1, MPID features.7
       - mid64:  ResNet layer2, MPID features.14
       - mid32:  ResNet layer3, MPID features.21
-      - final:  ResNet layer4, MPID features.31 (final conv stage)
+      - final:  ResNet layer4, MPID features.28 (final conv stage)
 
     You can always override with --layer-name.
     """
@@ -426,7 +435,7 @@ def preset_layer_name(model: nn.Module, preset: str = "mid32") -> str:
         cand = mapping.get(preset, "net.layer3")
         return cand if cand in names else "net.layer4"
 
-    mapping = {"mid128": "features.7", "mid64": "features.14", "mid32": "features.21", "final": "features.31"}
+    mapping = {"mid128": "features.7", "mid64": "features.14", "mid32": "features.21", "final": "features.28"}
     cand = mapping.get(preset, "features.21")
     if cand in names:
         return cand
@@ -594,4 +603,275 @@ def deletion_insertion_curves(
         "random_insertion_signal": auc_trapezoid(out["random_insertion"]["signal"], fracs),
         "random_insertion_background": auc_trapezoid(out["random_insertion"]["background"], fracs),
     }
+    return out
+
+
+# -----------------------------
+# Diagnostics: richer quantitative summaries
+# -----------------------------
+
+_DEFAULT_FRACS = [0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+
+
+def infer_mass_from_filename(path: str) -> Optional[str]:
+    """Extract mass token from 'ma_X.X' pattern in filename."""
+    import re
+    name = os.path.basename(str(path))
+    m = re.search(r"ma[_-](\d+(?:\.\d+)?)", name, re.IGNORECASE)
+    return m.group(1) if m else None
+
+
+def attr_adc_correlation(
+    attr: np.ndarray,
+    adc: np.ndarray,
+    active: np.ndarray,
+    use_abs: bool = True,
+) -> Dict[str, float]:
+    """Correlation between attribution strength and ADC on *active* pixels.
+
+    - Pearson: linear relationship
+    - Spearman: rank relationship (robust to outliers / nonlinearity)
+
+    Returns NaN values when undefined (e.g. too few active pixels or constant arrays).
+    """
+    if attr.shape != adc.shape or attr.shape != active.shape:
+        raise ValueError("attr/adc/active must have same shape")
+
+    m = active.astype(bool)
+    if m.sum() < 3:
+        return {"pearson_r": float('nan'), "pearson_p": float('nan'),
+                "spearman_r": float('nan'), "spearman_p": float('nan'),
+                "n": int(m.sum())}
+
+    a = np.abs(attr[m]) if use_abs else attr[m]
+    x = adc[m]
+
+    # Handle constant arrays (stats.* will throw warnings / errors)
+    if float(np.std(a)) == 0.0 or float(np.std(x)) == 0.0:
+        return {"pearson_r": float('nan'), "pearson_p": float('nan'),
+                "spearman_r": float('nan'), "spearman_p": float('nan'),
+                "n": int(m.sum())}
+
+    pr = stats.pearsonr(x, a)
+    sr = stats.spearmanr(x, a)
+    return {
+        "pearson_r": float(pr.statistic),
+        "pearson_p": float(pr.pvalue),
+        "spearman_r": float(sr.correlation),
+        "spearman_p": float(sr.pvalue),
+        "n": int(m.sum()),
+    }
+
+
+def _connected_components_stats(mask: np.ndarray) -> Dict[str, float]:
+    """Simple fragmentation metrics for a boolean mask."""
+    mask = mask.astype(bool)
+    n_sel = int(mask.sum())
+    if n_sel == 0:
+        return {
+            "frag_n_components": 0,
+            "frag_largest_component_frac": float('nan'),
+        }
+
+    # 8-connectivity in 2D
+    structure = np.ones((3, 3), dtype=int)
+    labeled, ncomp = ndimage.label(mask, structure=structure)
+    if ncomp <= 0:
+        return {"frag_n_components": 0, "frag_largest_component_frac": float('nan')}
+
+    sizes = np.bincount(labeled.reshape(-1))
+    if sizes.size <= 1:
+        largest = 0
+    else:
+        largest = int(sizes[1:].max())
+
+    return {
+        "frag_n_components": int(ncomp),
+        "frag_largest_component_frac": float(largest) / float(n_sel),
+    }
+
+
+def mask_diagnostics(
+    attr: np.ndarray,
+    active: np.ndarray,
+    use_abs: bool = True,
+    fracs: Optional[list] = None,
+) -> Dict[str, object]:
+    """Quantitative summaries that treat an attribution map as a ranking.
+
+    We compute binary masks at multiple pixel budgets (fractions), then report:
+    - precision_on_active: among selected pixels, what fraction are active
+    - recall_active_flagged: among active pixels, what fraction were selected
+    - iou_with_active: overlap between selected mask and active mask
+    - fragmentation metrics of the selected mask
+
+    We do this in two modes:
+    - global_topk: select top frac of ALL pixels
+    - active_only_topk: select top frac of ACTIVE pixels only
+
+    Additionally returns distribution + sign stats on active pixels.
+    """
+    if attr.shape != active.shape:
+        raise ValueError("attr and active must have same shape")
+
+    fracs = list(fracs) if fracs is not None else list(_DEFAULT_FRACS)
+
+    a_rank = np.abs(attr) if use_abs else attr
+    active_bool = active.astype(bool)
+    n_total = int(a_rank.size)
+    n_active = int(active_bool.sum())
+
+    # Distribution stats on active pixels (use |attr| because magnitude usually matters)
+    v = np.abs(attr[active_bool]).astype(np.float64) if n_active > 0 else np.asarray([], dtype=np.float64)
+    if v.size:
+        attr_stats = {
+            "min": float(v.min()),
+            "max": float(v.max()),
+            "mean": float(v.mean()),
+            "median": float(np.median(v)),
+            "q90": float(np.percentile(v, 90.0)),
+            "q95": float(np.percentile(v, 95.0)),
+            "q99": float(np.percentile(v, 99.0)),
+            "q999": float(np.percentile(v, 99.9)),
+        }
+    else:
+        attr_stats = {k: float('nan') for k in ["min","max","mean","median","q90","q95","q99","q999"]}
+
+    # Sign stats on active pixels (only meaningful for signed maps)
+    s = attr[active_bool] if n_active > 0 else np.asarray([], dtype=np.float32)
+    if s.size:
+        sign_stats = {
+            "active_pos_frac": float((s > 0).mean()),
+            "active_neg_frac": float((s < 0).mean()),
+            "active_zero_frac": float((s == 0).mean()),
+        }
+    else:
+        sign_stats = {"active_pos_frac": float('nan'), "active_neg_frac": float('nan'), "active_zero_frac": float('nan')}
+
+    # How much attribution mass lies on active pixels?
+    mass_all = float(np.abs(attr).sum())
+    mass_act = float(np.abs(attr[active_bool]).sum()) if n_active > 0 else 0.0
+    active_abs_mass_frac = (mass_act / mass_all) if mass_all > 0 else float('nan')
+
+    def _metrics_for(mask: np.ndarray) -> Dict[str, float]:
+        mask = mask.astype(bool)
+        n_sel = int(mask.sum())
+        inter = int((mask & active_bool).sum())
+        union = int((mask | active_bool).sum())
+
+        precision = (inter / n_sel) if n_sel > 0 else float('nan')
+        recall = (inter / n_active) if n_active > 0 else float('nan')
+        iou = (inter / union) if union > 0 else float('nan')
+
+        out = {
+            "n_selected": n_sel,
+            "precision_on_active": float(precision),
+            "recall_active_flagged": float(recall),
+            "iou_with_active": float(iou),
+        }
+        out.update(_connected_components_stats(mask))
+        return out
+
+    # Precompute global order
+    flat = a_rank.reshape(-1)
+    order_global = np.argsort(flat)[::-1]
+
+    rows_global = []
+    rows_active = []
+
+    # Active-only ranking
+    if n_active > 0:
+        active_idx = np.flatnonzero(active_bool.reshape(-1))
+        flat_active = flat[active_idx]
+        order_active = active_idx[np.argsort(flat_active)[::-1]]
+    else:
+        active_idx = np.asarray([], dtype=int)
+        order_active = active_idx
+
+    for frac in fracs:
+        frac = float(frac)
+
+        # --- global topk ---
+        k = int(round(frac * n_total))
+        k = max(0, min(k, n_total))
+        m = np.zeros(n_total, dtype=bool)
+        if k > 0:
+            m[order_global[:k]] = True
+        mask_g = m.reshape(attr.shape)
+        row_g = {"frac": frac}
+        row_g.update(_metrics_for(mask_g))
+        rows_global.append(row_g)
+
+        # --- active-only topk (fraction of ACTIVE pixels) ---
+        ka = int(round(frac * n_active)) if n_active > 0 else 0
+        ka = max(0, min(ka, n_active))
+        ma = np.zeros(n_total, dtype=bool)
+        if ka > 0:
+            ma[order_active[:ka]] = True
+        mask_a = ma.reshape(attr.shape)
+        row_a = {"frac": frac}
+        row_a.update(_metrics_for(mask_a))
+        rows_active.append(row_a)
+
+    return {
+        "n_total": n_total,
+        "n_active": n_active,
+        "active_frac": float(n_active) / float(n_total) if n_total > 0 else float('nan'),
+        "use_abs_rank": bool(use_abs),
+        "global_topk": rows_global,
+        "active_only_topk": rows_active,
+        "attr_stats_on_active": attr_stats,
+        "sign_stats_on_active": sign_stats,
+        "active_abs_mass_frac": float(active_abs_mass_frac),
+    }
+
+
+def curves_pixel_need_summary(curves: Dict[str, object]) -> Dict[str, object]:
+    """Summarize insertion/deletion curves as "how many pixels do I need?".
+
+    For insertion (starts at baseline, ends at full image):
+      - fraction to reach 50% / 90% / 95% of the full-range gain.
+
+    For deletion (starts at full image, ends at baseline):
+      - fraction to drop to 90% / 50% / 10% of the full-range gain remaining.
+
+    This is robust to baselines that are not 0.
+    """
+    fracs = np.asarray(curves.get("fractions", []), dtype=np.float64)
+    if fracs.size == 0:
+        return {}
+
+    def _first_reach(y: np.ndarray, thresh: float, ge: bool = True) -> float:
+        if y.size == 0 or not np.isfinite(thresh):
+            return float('nan')
+        if ge:
+            idx = np.where(y >= thresh)[0]
+        else:
+            idx = np.where(y <= thresh)[0]
+        return float(fracs[idx[0]]) if idx.size else float('nan')
+
+    out: Dict[str, object] = {}
+
+    for cls in ["signal", "background"]:
+        # insertion
+        y_ins = np.asarray(curves.get("insertion", {}).get(cls, []), dtype=np.float64)
+        if y_ins.size == fracs.size and y_ins.size > 0:
+            y0, y1 = float(y_ins[0]), float(y_ins[-1])
+            out[f"insertion_{cls}_frac_to_reach"] = {
+                "50%": _first_reach(y_ins, y0 + 0.50 * (y1 - y0), ge=True),
+                "90%": _first_reach(y_ins, y0 + 0.90 * (y1 - y0), ge=True),
+                "95%": _first_reach(y_ins, y0 + 0.95 * (y1 - y0), ge=True),
+            }
+
+        # deletion
+        y_del = np.asarray(curves.get("deletion", {}).get(cls, []), dtype=np.float64)
+        if y_del.size == fracs.size and y_del.size > 0:
+            y0, y1 = float(y_del[0]), float(y_del[-1])
+            # y0 ~ full-image, y1 ~ baseline; thresholds are "retain t of the gain"
+            out[f"deletion_{cls}_frac_to_drop"] = {
+                "90%": _first_reach(y_del, y1 + 0.90 * (y0 - y1), ge=False),
+                "50%": _first_reach(y_del, y1 + 0.50 * (y0 - y1), ge=False),
+                "10%": _first_reach(y_del, y1 + 0.10 * (y0 - y1), ge=False),
+            }
+
     return out

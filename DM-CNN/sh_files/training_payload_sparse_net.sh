@@ -21,7 +21,7 @@ apptainer exec -B "$PWD":/workspace /vols/sbn/uboone/an1522/larcv2_py3_1.1_spars
   export PYTHONFAULTHANDLER=1
   export PYTORCH_NVML_BASED_CUDA_CHECK=0
 
-  # Preflight (prints in the job stdout so you know what node you landed on)
+  # Preflight (prints in the job stdout to know what node has been landed on)
   python3 - << "PY"
 import torch
 print("torch:", torch.__version__, "torch.version.cuda:", torch.version.cuda)

@@ -1,8 +1,8 @@
 executable = /home/hep/an1522/dark_tridents_wspace/DM-CNN/sh_files/integrated_gradients_wrapper.sh
 
-output = logs/inte_grad.$(Cluster).$(Process).out
-error  = logs/inte_grad.$(Cluster).$(Process).err
-log    = logs/inte_grad.$(Cluster).log
+output = logs/inte_grad/inte_grad.$(Cluster).$(Process).out
+error  = logs/inte_grad/inte_grad.$(Cluster).$(Process).err
+log    = logs/inte_grad/inte_grad.$(Cluster).log
 
 arguments = $(root_file) $(weight_file) $(out_dir) $(entry_number) $(n_pixels) $(tag)
 

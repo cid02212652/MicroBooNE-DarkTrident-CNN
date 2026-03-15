@@ -22,10 +22,11 @@ mkdir -p "$OUT_DIR"
 apptainer exec --nv \
   -B "$PROJECT":/workspace \
   -B "$DATA_DIR":/data \
+  -B /vols:/vols \
   "$IMG" /bin/bash -lc "
     cd /workspace/DM-CNN
     source setup_larcv2_dm.sh
-    python3 uboone/scorecam_CNN_cli_v3.py \
+    python3 uboone/scorecam_CNN_cli_v5.py \
       --weight-file \"$WEIGHT_FILE\" \
       --input-file  \"/data/$ROOT_BASENAME\" \
       --entry       \"$ENTRY_NUMBER\" \
@@ -36,7 +37,8 @@ apptainer exec --nv \
       --scorecam-batch 16 \
       --layer-preset final \
       --diag-curves \
-      --normalize
+      --normalize \
+      --save-npy
   "
 
 

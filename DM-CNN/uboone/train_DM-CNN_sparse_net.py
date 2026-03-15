@@ -115,7 +115,7 @@ def TrainCNN():
         dense_threshold=getattr(cfg, "sparse_dense_threshold", 0.0),
     ).to(train_device)
 
-    # Loss/optim: stay consistent with your binary setup 
+    # Loss/optim: stay consistent with binary setup 
     loss_fn = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(mpid.parameters(), lr=cfg.learning_rate)
 

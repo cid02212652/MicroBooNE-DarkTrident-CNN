@@ -44,7 +44,7 @@ def main() -> None:
     print("Wrote:", TASKS_CSV, "rows=", len(tasks))
     print("Wrote:", TASKS_LIST)
 
-    written = write_method_task_lists(TASKS_LIST, EXTRA_METHODS)
+    written = write_method_task_lists(TASKS_LIST, EXTRA_METHODS, outputs_dirname="cam_methods")
     for out_path in written:
         print("Wrote:", out_path)
 

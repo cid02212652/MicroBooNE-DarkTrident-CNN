@@ -43,10 +43,10 @@ def PrintImage(ENTRY):
     cfg = config_loader(CFG)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.GPUID
-    weight_file = cfg.weight_file
+    # weight_file = cfg.weight_file
     output_dir = cfg.output_dir
     input_file = cfg.input_file
-    score_label = cfg.score_label
+    # score_label = cfg.score_label
     colorbar_included = cfg.colorbar
     data = cfg.data
     logit = cfg.logit
@@ -72,12 +72,12 @@ def PrintImage(ENTRY):
     input_image[0][0][input_image[0][0] > 500] = 500
     input_image[0][0][input_image[0][0] < 10] = 0
 
-    # Get scores of input image
-    if score_label:
-        mpid = mpid_net_binary.MPID()
-        mpid.load_state_dict(torch.load(weight_file, map_location=train_device))
-        mpid.eval()
-        score = nn.Sigmoid()(mpid(input_image))
+    # # Get scores of input image
+    # if score_label:
+    #     mpid = mpid_net_binary.MPID()
+    #     mpid.load_state_dict(torch.load(weight_file, map_location=train_device))
+    #     mpid.eval()
+    #     score = nn.Sigmoid()(mpid(input_image))
 
     fig, ax = plt.subplots(1, 1, figsize=(20, 20), dpi=300)
     img = ax.imshow(
@@ -174,24 +174,24 @@ def PrintImage(ENTRY):
     else:
         ax.text(20, 20, "MicroBooNE Simulation", color="white", fontsize=53)
 
-    if score_label and logit:
-        ax.text(
-            20,
-            50,
-            "Signal score: %.3f" % logit_transform(score.cpu().detach().numpy()[0][0]),
-            color="white",
-            fontsize=53,
-        )
-    elif score_label and not logit:
-        ax.text(
-            20,
-            50,
-            "Signal score: %.3f" % score.cpu().detach().numpy()[0][0],
-            color="white",
-            fontsize=53,
-        )
-    else:
-        pass
+    # if score_label and logit:
+    #     ax.text(
+    #         20,
+    #         50,
+    #         "Signal score: %.3f" % logit_transform(score.cpu().detach().numpy()[0][0]),
+    #         color="white",
+    #         fontsize=53,
+    #     )
+    # elif score_label and not logit:
+    #     ax.text(
+    #         20,
+    #         50,
+    #         "Signal score: %.3f" % score.cpu().detach().numpy()[0][0],
+    #         color="white",
+    #         fontsize=53,
+    #     )
+    # else:
+    #     pass
 
     # Create output file name
     output_name_base = file_name + "_ENTRY_" + str(ENTRY)

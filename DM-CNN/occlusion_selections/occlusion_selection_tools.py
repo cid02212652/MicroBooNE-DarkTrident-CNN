@@ -67,7 +67,7 @@ class SelectionConfig:
     infer_base: Path
     out_base: Path
     larcv_base: Path = Path("/vols/sbn/uboone/darkTridents/data/larcv_files")
-    signal_keep_substr: Optional[str] = "dt_ratio_0.6_ma_0.05_pi0"
+    signal_keep_substr: Optional[str] = "dt_ratio_0.6_ma"
     bad_score: float = DEFAULT_BAD_SCORE
     bad_pixels: int = DEFAULT_BAD_PIXELS
     exclude_suffixes: Tuple[str, ...] = ("_pdf", "_png")
@@ -206,7 +206,7 @@ def clean_scores(
     *,
     bad_score: float = DEFAULT_BAD_SCORE,
     bad_pixels: int = DEFAULT_BAD_PIXELS,
-    signal_keep_substr: Optional[str] = "dt_ratio_0.6_ma_0.05_pi0",
+    signal_keep_substr: Optional[str] = "dt_ratio_0.6_ma",
 ) -> pd.DataFrame:
     """Drop sentinel rows and optionally restrict signal files to a substring."""
     if all_scores.empty:
@@ -246,14 +246,10 @@ def select_occlusion_set(
     df_folder: pd.DataFrame,
     *,
     kind: str,
-    A: int = 1,
-    B: int = 1,
-    C: int = 1,
-    D: int = 2,
-    # A: int = 10,
-    # B: int = 10,
-    # C: int = 10,
-    # D: int = 5,
+    A: int = 10,
+    B: int = 10,
+    C: int = 10,
+    D: int = 10,
     samples_high_q: float = 0.995,
     signal_low_q: float = 0.005,
     borderline_target: float = 0.5,
@@ -393,8 +389,7 @@ def select_occlusion_set_stratified(
     *,
     kind: str,
     files: Optional[Sequence[str]] = None,
-    per_file_counts: Tuple[int, int, int, int] = (1, 1, 1, 1),
-    # per_file_counts: Tuple[int, int, int, int] = (4, 4, 4, 2),
+    per_file_counts: Tuple[int, int, int, int] = (4, 4, 4, 4),
     **kwargs,
 ) -> pd.DataFrame:
     """Select events per score-file to enforce representation (useful for samples)."""
@@ -429,10 +424,8 @@ def add_disagreement_picks(
     run: str,
     kind: str,
     other_folder: str,
-    E_abs: int = 2,
-    E_flip: int = 2,
-    # E_abs: int = 10,
-    # E_flip: int = 10,
+    E_abs: int = 10,
+    E_flip: int = 10,
     thr: float = 0.5,
     margin: float = 0.20,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -489,20 +482,20 @@ def add_disagreement_picks(
 
     extra_rows = subset.merge(extra[KEYS], on=KEYS, how="inner")
 
-    def mk_reason(row: pd.Series) -> str:
-        rr = extra.loc[
-            (extra["run_number"] == row["run_number"])
-            & (extra["subrun_number"] == row["subrun_number"])
-            & (extra["event_number"] == row["event_number"])
-        ].iloc[0]
-        tags = ["E_disagree", f"E_vs_{other_folder}"]
-        if bool(rr["flip_strong"]):
-            tags.append(f"E_strong_flip_m{margin}")
-        tags.append("E_other_gt_ref" if rr["delta"] > 0 else "E_ref_gt_other")
-        return "+".join(tags)
+    # def mk_reason(row: pd.Series) -> str:
+    #     rr = extra.loc[
+    #         (extra["run_number"] == row["run_number"])
+    #         & (extra["subrun_number"] == row["subrun_number"])
+    #         & (extra["event_number"] == row["event_number"])
+    #     ].iloc[0]
+    #     tags = ["E_disagree"]
+    #     if bool(rr["flip_strong"]):
+    #         tags.append(f"E_strong_flip_m{margin}")
+    #     tags.append("E_other_gt_ref" if rr["delta"] > 0 else "E_ref_gt_other")
+    #     return "+".join(tags)
 
     extra_rows = extra_rows.copy()
-    extra_rows["pick_reason"] = extra_rows.apply(mk_reason, axis=1)
+    extra_rows["pick_reason"] = "E_disagree"
 
     out = pd.concat([picks_ref, extra_rows], ignore_index=True).drop_duplicates(
         subset=KEYS, keep="first"
@@ -544,8 +537,7 @@ def build_master(
             df_ref,
             kind="samples",
             files=samples_files,
-            per_file_counts=(1, 1, 1, 1),
-            # per_file_counts=(4, 4, 4, 2),
+            per_file_counts=(4, 4, 4, 4),
         )
     else:
         picks = select_occlusion_set(df_ref, kind="signal")
@@ -560,10 +552,8 @@ def build_master(
             run=run,
             kind=kind,
             other_folder=disagreement_against,
-            E_abs=1,
-            E_flip=1,
-            # E_abs=10,
-            # E_flip=10,
+            E_abs=10,
+            E_flip=10,
             margin=0.20,
         )
 
@@ -739,10 +729,11 @@ def folder_to_model_key(folder_name: str) -> str:
     return "mpid"
 
 
-def outdir_for(project_dir: Path, tag: str, dataset: str, folder: str) -> Path:
+def outdir_for(tag: str, dataset: str, folder: str) -> Path:
     """Directory where occlusion outputs for this task should be written."""
-    return project_dir / "outputs" / "occlusion" / tag / dataset / folder
-
+    # Wrap the base string in Path() so the / operator works
+    base_path = Path("/vols/sbn/uboone/an1522/cam_methods")
+    return base_path / "occlusion" / tag / dataset / folder
 
 def build_occlusion_tasks(task_cfg: TaskConfig) -> pd.DataFrame:
     """Create occlusion_tasks.csv and occlusion_tasks.list from to_occlude tables."""
@@ -779,7 +770,7 @@ def build_occlusion_tasks(task_cfg: TaskConfig) -> pd.DataFrame:
                     "entry_number": int(getattr(r, "entry_number")),
                     "n_pixels": int(getattr(r, "n_pixels")),
                     "out_dir": str(
-                        outdir_for(task_cfg.project_dir, tag, dataset, folder)
+                        outdir_for(tag, dataset, folder)
                     ),
                     "tag": tag,
                 }
@@ -1008,7 +999,7 @@ def _cli_select() -> None:
     )
     ap.add_argument("--infer-base", type=Path, required=True)
     ap.add_argument("--out-base", type=Path, required=True)
-    ap.add_argument("--signal-keep", type=str, default="dt_ratio_0.6_ma_0.05_pi0")
+    ap.add_argument("--signal-keep", type=str, default="dt_ratio_0.6_ma")
     args = ap.parse_args()
 
     cfg = SelectionConfig(
