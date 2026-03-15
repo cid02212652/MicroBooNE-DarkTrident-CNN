@@ -51,7 +51,7 @@ def InferenceCNN():
     """
 
     MPID_PATH = os.path.dirname(mpid_data_binary.__file__) + "/../cfg"
-    CFG = os.path.join(MPID_PATH, "inference_config_binary_1.cfg")
+    CFG = os.path.join(MPID_PATH, "inference_config_binary_resnet_1.cfg")
     cfg = config_loader(CFG)
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"

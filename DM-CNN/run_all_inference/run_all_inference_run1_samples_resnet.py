@@ -11,15 +11,20 @@ from pathlib import Path
 BASE = os.path.expanduser("~/dark_tridents_wspace")
 CFG = os.path.join(BASE, "DM-CNN", "cfg", "inference_config_binary_resnet_1.cfg")
 JOBDIR = os.path.join(BASE, "DM-CNN")
-JOBFILE = "inference_dmcnn_1.job"
+JOBFILE = "jobs/inference_resnet_1.job"
 
 # --- Inputs
-RUN1_BASE = "/vols/sbn/uboone/darkTridents/data/larcv_files"
-ROOT_SUB = "run1_samples"  # ROOTs live in RUN1_BASE/ROOT_SUB/
-CSV_DIR = os.path.join(BASE, "run1_samples")  # your 3 CSVs live here
+# RUN1_BASE = "/vols/sbn/uboone/darkTridents/data/larcv_files"
+RUN1_BASE = BASE
+
+# ROOT_SUB = "run1_samples"  # ROOTs live in RUN1_BASE/ROOT_SUB/
+# CSV_DIR = os.path.join(BASE, "run1_samples")  # your 3 CSVs live here
+ROOT_SUB = "run1_data"  # ROOTs live in RUN1_BASE/ROOT_SUB/
+CSV_DIR = os.path.join(BASE, "run1_data")  # your 3 CSVs live here
 
 # --- Outputs (write directly here by editing output_dir in cfg)
-OUT_DIR = os.path.join(BASE, "outputs", "inference", "run1_samples_resnet34_bn")
+# OUT_DIR = os.path.join(BASE, "outputs", "inference", "run1_samples_resnet34_gn")
+OUT_DIR = os.path.join(BASE, "outputs", "inference", "run1_data_resnet34_gn")
 
 DRYRUN = False
 

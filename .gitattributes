@@ -1,3 +1,4 @@
 outputs/inference/run1_samples_mpid/run1_nu_overlay_CNN.csv filter=lfs diff=lfs merge=lfs -text
 pyhf_files/Analysis_datasets/run1_nu_overlay_CNN.csv filter=lfs diff=lfs merge=lfs -text
 pyhf_files/*.csv filter=lfs diff=lfs merge=lfs -text
+outputs/inference/run1_samples_resnet34_gn/run1_nu_overlay_CNN.csv filter=lfs diff=lfs merge=lfs -text
